@@ -25,10 +25,16 @@ namespace BASpark
         Whitelist
     }
 
+    public enum PanelScrollbarVisibility
+    {
+        Always,
+        OnScroll
+    }
+
     public class FilterProfile
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Name { get; set; } = "新配置组";
+        public string Name { get; set; } = "";
         public ProcessFilterModeOption Mode { get; set; } = ProcessFilterModeOption.Blacklist;
         public List<string> Processes { get; set; } = new List<string>();
     }
@@ -74,6 +80,8 @@ namespace BASpark
         public static bool ScreenshotCompatibilityMode { get; set; } = false;
         public static string EnabledScreenIds { get; set; } = "";
         public static string ScreenSelections { get; set; } = "";
+        public static string UiLanguage { get; set; } = "";
+        public static PanelScrollbarVisibility ScrollbarVisibility { get; set; } = PanelScrollbarVisibility.OnScroll;
 
         private static List<FilterProfile> _profiles = new List<FilterProfile>();
 
@@ -112,6 +120,12 @@ namespace BASpark
                         ScreenshotCompatibilityMode = Convert.ToBoolean(key.GetValue("ScreenshotCompatibilityMode", false));
                         EnabledScreenIds = key.GetValue("EnabledScreenIds", "")?.ToString() ?? "";
                         ScreenSelections = key.GetValue("ScreenSelections", "")?.ToString() ?? "";
+                        UiLanguage = key.GetValue("UiLanguage", "")?.ToString() ?? "";
+                        ScrollbarVisibility = ParseScrollbarVisibility(key.GetValue("ScrollbarVisibility", "OnScroll")?.ToString());
+                        if (!string.IsNullOrWhiteSpace(UiLanguage))
+                        {
+                            Localization.ApplyCulture(UiLanguage);
+                        }
 
                         FilterProfiles = key.GetValue("FilterProfiles", "")?.ToString() ?? "";
                         ActiveProfileId = key.GetValue("ActiveProfileId", "")?.ToString() ?? "";
@@ -143,7 +157,7 @@ namespace BASpark
 
                             var defaultProfile = new FilterProfile
                             {
-                                Name = "默认配置",
+                                Name = Localization.Get("Profile_Default"),
                                 Mode = oldMode == ProcessFilterModeOption.Disabled ? ProcessFilterModeOption.Blacklist : oldMode,
                                 Processes = oldList
                             };
@@ -159,6 +173,16 @@ namespace BASpark
                 }
             }
             catch { }
+        }
+
+        public static PanelScrollbarVisibility ParseScrollbarVisibility(string? raw)
+        {
+            if (string.Equals(raw, "Always", StringComparison.OrdinalIgnoreCase))
+            {
+                return PanelScrollbarVisibility.Always;
+            }
+
+            return PanelScrollbarVisibility.OnScroll;
         }
 
         public static void GetAnimationSpeedsForOverlay(out double trailSpeed, out double clickSpeed)
@@ -458,6 +482,7 @@ namespace BASpark
                 ScreenshotCompatibilityMode = false;
                 EnabledScreenIds = "";
                 ScreenSelections = "";
+                UiLanguage = "";
             }
             catch { }
         }

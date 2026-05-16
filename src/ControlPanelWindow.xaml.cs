@@ -55,6 +55,7 @@ namespace BASpark
         public string IdentityKey { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
         public bool IsEnabled { get; set; }
+        public string EnableLabel { get; set; } = string.Empty;
     }
 
     public partial class ControlPanelWindow : Window
@@ -75,8 +76,10 @@ namespace BASpark
 
         private DispatcherTimer _refreshTimer;
         private DispatcherTimer _noticeTimer;
+        private DispatcherTimer? _scrollbarHideTimer;
         private bool _isCheckingUpdate = false;
         private bool _suspendLinkedAnimationUiHandlers;
+        private string _languageAtLoad = Localization.CultureZhCn;
 
         public ObservableCollection<FilterProfile> Profiles { get; set; } = new ObservableCollection<FilterProfile>();
         public ObservableCollection<string> CurrentProfileProcesses { get; set; } = new ObservableCollection<string>();
@@ -87,7 +90,11 @@ namespace BASpark
         public ControlPanelWindow()
         {
             InitializeComponent();
-            
+
+            _languageAtLoad = string.IsNullOrWhiteSpace(ConfigManager.UiLanguage)
+                ? Localization.CurrentCultureName
+                : ConfigManager.UiLanguage;
+
             ComboProfiles.ItemsSource = Profiles;
             ListConfiguredProcesses.ItemsSource = CurrentProfileProcesses;
             ListRunningProcesses.ItemsSource = RunningProcessList;
@@ -96,6 +103,8 @@ namespace BASpark
 
             LoadVersion();
             LoadSettings();
+            ApplyScrollbarSettings();
+            UiLocalizer.ApplyControlPanel(this);
             LoadScreenOptions();
             CheckAdminStatus();
             LoadRemoteNotice();
@@ -155,7 +164,7 @@ namespace BASpark
 
         private async Task CheckForUpdates(bool isManual)
         {
-            string updateUrl = "https://api.catbotstudio.cn/baspark/update.json"; 
+            string updateUrl = Localization.GetRemoteUpdateUrl();
             try
             {
                 using HttpClient client = new HttpClient();
@@ -168,7 +177,7 @@ namespace BASpark
 
                 string latestVersionStr = root.GetProperty("version").GetString() ?? "0.0.0.0";
                 string downloadUrl = root.GetProperty("url").GetString() ?? "";
-                string updateNotes = root.GetProperty("notes").GetString() ?? "无更新说明";
+                string updateNotes = root.GetProperty("notes").GetString() ?? Localization.Get("Msg_NoUpdateNotes");
 
                 Version latestVersion = new Version(latestVersionStr);
                 Version? currentVersion = Assembly.GetExecutingAssembly().GetName().Version;
@@ -178,8 +187,8 @@ namespace BASpark
                     Dispatcher.Invoke(() =>
                     {
                         var result = System.Windows.MessageBox.Show(
-                            $"发现新版本: V{latestVersionStr}\n\n更新内容:\n{updateNotes}\n\n是否立即前往下载？",
-                            "发现新版本",
+                            Localization.Format("Msg_UpdateAvailable", latestVersionStr, updateNotes),
+                            Localization.Get("Msg_UpdateAvailable_Title"),
                             MessageBoxButton.YesNo,
                             MessageBoxImage.Information);
 
@@ -193,7 +202,11 @@ namespace BASpark
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        System.Windows.MessageBox.Show("当前已是最新版本，无需更新！", "检查更新", MessageBoxButton.OK, MessageBoxImage.Information);
+                        System.Windows.MessageBox.Show(
+                            Localization.Get("Msg_UpToDate"),
+                            Localization.Get("Msg_CheckUpdate_Title"),
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
                     });
                 }
             }
@@ -203,7 +216,11 @@ namespace BASpark
                 {
                     Dispatcher.Invoke(() =>
                     {
-                        System.Windows.MessageBox.Show("检查更新失败: \n" + ex.Message, "网络错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                        System.Windows.MessageBox.Show(
+                            Localization.Format("Msg_CheckUpdateFailed", ex.Message),
+                            Localization.Get("Msg_NetworkError"),
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
                     });
                 }
                 else
@@ -216,14 +233,14 @@ namespace BASpark
         private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
         {
             if (_isCheckingUpdate) return;
-            var btn = sender as System.Windows.Controls.Button;
+            var btn = BtnCheckUpdate ?? sender as System.Windows.Controls.Button;
             try
             {
                 _isCheckingUpdate = true;
                 if (btn != null)
                 {
                     btn.IsEnabled = false;
-                    btn.Content = "正在检查..."; 
+                    btn.Content = Localization.Get("About_CheckingUpdate");
                 }
                 await CheckForUpdates(isManual: true);
             }
@@ -233,14 +250,14 @@ namespace BASpark
                 if (btn != null)
                 {
                     btn.IsEnabled = true;
-                    btn.Content = "检查更新"; 
+                    btn.Content = Localization.Get("About_CheckUpdate");
                 }
             }
         }
 
         private async void LoadRemoteNotice()
         {
-            string noticeUrl = "https://api.catbotstudio.cn/baspark/notice.json";
+            string noticeUrl = Localization.GetRemoteNoticeUrl();
             try
             {
                 using HttpClient client = new HttpClient();
@@ -250,7 +267,7 @@ namespace BASpark
                 using JsonDocument doc = JsonDocument.Parse(json);
                 JsonElement root = doc.RootElement;
 
-                string title = root.GetProperty("title").GetString() ?? "官方公告";
+                string title = root.GetProperty("title").GetString() ?? Localization.Get("Msg_DefaultNoticeTitle");
                 string content = root.GetProperty("content").GetString() ?? "";
                 string date = root.GetProperty("date").GetString() ?? "";
                 string lastContent = ConfigManager.LastNoticeContent;
@@ -307,14 +324,14 @@ namespace BASpark
             }
             catch
             {
-                if (VersionText != null) VersionText.Text = "版本信息读取失败";
+                if (VersionText != null) VersionText.Text = Localization.Get("Version_ReadFailed");
             }
         }
 
         private void RefreshTimer_Tick(object? sender, EventArgs e)
         {
             if (ClickCountText != null)
-                ClickCountText.Text = $"{ConfigManager.TotalClicks} 次";
+                ClickCountText.Text = Localization.Format("Welcome_ClicksUnit", ConfigManager.TotalClicks);
 
             if (StatusText != null)
             {
@@ -323,17 +340,17 @@ namespace BASpark
 
                 if (!ConfigManager.IsEffectEnabled)
                 {
-                    StatusText.Text = "已暂停 (Paused)";
+                    StatusText.Text = Localization.Get("Status_Paused");
                     StatusText.Foreground = System.Windows.Media.Brushes.Gray;
                 }
                 else if (suppressedByEnvironment)
                 {
-                    StatusText.Text = "环境过滤中 (Auto Hidden)";
+                    StatusText.Text = Localization.Get("Status_Filtered");
                     StatusText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xD9, 0x77, 0x06));
                 }
                 else
                 {
-                    StatusText.Text = "工作中 (Active)";
+                    StatusText.Text = Localization.Get("Status_Active");
                     StatusText.Foreground = System.Windows.Media.Brushes.Green;
                 }
             }
@@ -496,6 +513,62 @@ namespace BASpark
             SliderClickAnimSpeed.Value = ConfigManager.ClickAnimationSpeed;
             SliderTrailRefresh.Value = ConfigManager.TrailRefreshRate;
             UpdateAnimationSpeedPanelVisibility();
+
+            if (ConfigManager.ScrollbarVisibility == PanelScrollbarVisibility.Always)
+            {
+                RadioScrollbarAlways.IsChecked = true;
+            }
+            else
+            {
+                RadioScrollbarOnScroll.IsChecked = true;
+            }
+        }
+
+        private void ApplyScrollbarSettings()
+        {
+            _scrollbarHideTimer?.Stop();
+            if (ConfigManager.ScrollbarVisibility == PanelScrollbarVisibility.Always)
+            {
+                MainContentScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Visible;
+            }
+            else
+            {
+                MainContentScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
+            }
+        }
+
+        private void ShowScrollbarTemporarily()
+        {
+            if (ConfigManager.ScrollbarVisibility != PanelScrollbarVisibility.OnScroll)
+            {
+                return;
+            }
+
+            MainContentScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Visible;
+            _scrollbarHideTimer?.Stop();
+            _scrollbarHideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+            _scrollbarHideTimer.Tick += (_, _) =>
+            {
+                _scrollbarHideTimer?.Stop();
+                if (ConfigManager.ScrollbarVisibility == PanelScrollbarVisibility.OnScroll)
+                {
+                    MainContentScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
+                }
+            };
+            _scrollbarHideTimer.Start();
+        }
+
+        private void MainContentScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (Math.Abs(e.VerticalChange) > 0.01 || Math.Abs(e.HorizontalChange) > 0.01)
+            {
+                ShowScrollbarTemporarily();
+            }
+        }
+
+        private void MainContentScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            ShowScrollbarTemporarily();
         }
 
         private void LoadScreenOptions()
@@ -513,9 +586,14 @@ namespace BASpark
                 var identity = screenInfos[i].Identity;
                 bool enabled = enabledDeviceNames.Contains(screen.DeviceName);
                 // 显示真实显示器名称，减少 DISPLAY1/2 变化误判
-                string title = identity.DisplayName + (screen.Primary ? " (主显示器)" : string.Empty);
+                string title = identity.DisplayName + (screen.Primary ? Localization.Get("MultiScreen_Primary") : string.Empty);
                 string resolution = $"{screen.Bounds.Width} x {screen.Bounds.Height}";
-                string detail = $"{GetScaleText(screen)}  ·  位置 ({screen.Bounds.Left}, {screen.Bounds.Top})  ·  {screen.DeviceName}";
+                string detail = Localization.Format(
+                    "MultiScreen_Detail",
+                    GetScaleText(screen),
+                    screen.Bounds.Left,
+                    screen.Bounds.Top,
+                    screen.DeviceName);
 
                 ScreenOptions.Add(new ScreenOptionItem
                 {
@@ -526,7 +604,8 @@ namespace BASpark
                     DeviceName = screen.DeviceName,
                     IdentityKey = identity.IdentityKey,
                     DisplayName = identity.DisplayName,
-                    IsEnabled = enabled
+                    IsEnabled = enabled,
+                    EnableLabel = Localization.Get("MultiScreen_Enable")
                 });
             }
         }
@@ -543,21 +622,21 @@ namespace BASpark
                 IntPtr monitor = MonitorFromPoint(center, MONITOR_DEFAULTTONEAREST);
                 if (monitor == IntPtr.Zero)
                 {
-                    return "缩放 100%";
+                    return Localization.Format("MultiScreen_Scale", 100);
                 }
 
                 int hr = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, out uint dpiX, out _);
                 if (hr != 0 || dpiX == 0)
                 {
-                    return "缩放 100%";
+                    return Localization.Format("MultiScreen_Scale", 100);
                 }
 
                 int scale = (int)Math.Round(dpiX / 96.0 * 100);
-                return $"缩放 {scale}%";
+                return Localization.Format("MultiScreen_Scale", scale);
             }
             catch
             {
-                return "缩放 100%";
+                return Localization.Format("MultiScreen_Scale", 100);
             }
         }
 
@@ -572,7 +651,7 @@ namespace BASpark
 
             if (CheckRunAsAdmin.IsChecked == true)
             {
-                StatusText.Text = "管理员模式将在保存并重启后生效";
+                StatusText.Text = Localization.Get("Status_AdminPending");
                 StatusText.Foreground = System.Windows.Media.Brushes.Orange;
             }
         }
@@ -691,14 +770,87 @@ namespace BASpark
 
         private void OpenLink_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is System.Windows.Controls.Button btn && btn.Tag is string url)
+            if (sender is not System.Windows.Controls.Button btn)
             {
-                try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
-                catch (Exception ex)
-                {
-                    System.Windows.MessageBox.Show("无法打开链接: " + ex.Message);
-                }
+                return;
             }
+
+            string? url = btn.Tag as string;
+            if (btn == BtnOfficialSite)
+            {
+                url = Localization.GetOfficialWebsiteUrl();
+            }
+            else if (btn == BtnDiscord)
+            {
+                url = Localization.GetDiscordUrl();
+            }
+
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show(Localization.Format("Msg_OpenLinkFailed", ex.Message));
+            }
+        }
+
+        public void PopulateLanguageCombo()
+        {
+            ComboLanguage.Items.Clear();
+            ComboLanguage.Items.Add(new ComboBoxItem { Content = Localization.Get("LangSelect_Chinese"), Tag = Localization.CultureZhCn });
+            ComboLanguage.Items.Add(new ComboBoxItem { Content = Localization.Get("LangSelect_English"), Tag = Localization.CultureEn });
+            ComboLanguage.Items.Add(new ComboBoxItem { Content = Localization.Get("LangSelect_Japanese"), Tag = Localization.CultureJa });
+
+            string current = string.IsNullOrWhiteSpace(ConfigManager.UiLanguage)
+                ? Localization.CurrentCultureName
+                : ConfigManager.UiLanguage;
+
+            ComboBoxItem? selected = ComboLanguage.Items
+                .OfType<ComboBoxItem>()
+                .FirstOrDefault(item => string.Equals(item.Tag?.ToString(), current, StringComparison.OrdinalIgnoreCase));
+
+            ComboLanguage.SelectedItem = selected ?? ComboLanguage.Items[0];
+        }
+
+        public void RefreshScreenEnableLabels()
+        {
+            string label = Localization.Get("MultiScreen_Enable");
+            foreach (var item in ScreenOptions)
+            {
+                item.EnableLabel = label;
+            }
+
+            ListScreenOptions.Items.Refresh();
+        }
+
+        public void ApplyAboutLinkVisibility()
+        {
+            BtnOfficialSite.Tag = Localization.GetOfficialWebsiteUrl();
+            bool isChinese = Localization.IsChineseLocale;
+            BtnBilibili.Visibility = isChinese ? Visibility.Visible : Visibility.Collapsed;
+            BtnQQ.Visibility = isChinese ? Visibility.Visible : Visibility.Collapsed;
+            BtnSponsor.Visibility = isChinese ? Visibility.Visible : Visibility.Collapsed;
+            BtnDiscord.Visibility = isChinese ? Visibility.Collapsed : Visibility.Visible;
+
+            string? discordUrl = Localization.GetDiscordUrl();
+            BtnDiscord.IsEnabled = !string.IsNullOrWhiteSpace(discordUrl);
+            BtnDiscord.Tag = discordUrl ?? string.Empty;
+        }
+
+        private string? GetSelectedLanguage()
+        {
+            if (ComboLanguage.SelectedItem is ComboBoxItem item)
+            {
+                return item.Tag?.ToString();
+            }
+
+            return null;
         }
 
         // --- 配置组管理 ---
@@ -715,7 +867,7 @@ namespace BASpark
 
         private void AddProfile_Click(object sender, RoutedEventArgs e)
         {
-            var newProfile = new FilterProfile { Name = "新配置组 " + (Profiles.Count + 1) };
+            var newProfile = new FilterProfile { Name = Localization.Format("Profile_NewNumbered", Profiles.Count + 1) };
             Profiles.Add(newProfile);
             ComboProfiles.SelectedItem = newProfile;
         }
@@ -760,13 +912,21 @@ namespace BASpark
         {
             if (Profiles.Count <= 1)
             {
-                System.Windows.MessageBox.Show("至少需要保留一个配置组。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                System.Windows.MessageBox.Show(
+                    Localization.Get("Msg_KeepOneProfile"),
+                    Localization.Get("Msg_Info"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
                 return;
             }
 
             if (ComboProfiles.SelectedItem is FilterProfile active)
             {
-                if (System.Windows.MessageBox.Show($"确定要删除 '{active.Name}' 吗？", "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                if (System.Windows.MessageBox.Show(
+                        Localization.Format("Msg_ConfirmDeleteProfile", active.Name),
+                        Localization.Get("Msg_ConfirmDelete_Title"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question) == MessageBoxResult.Yes)
                 {
                     Profiles.Remove(active);
                     ComboProfiles.SelectedIndex = 0;
@@ -801,8 +961,8 @@ namespace BASpark
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "可执行文件 (*.exe)|*.exe",
-                Title = "选择应用进程"
+                Filter = Localization.Get("Dialog_ExeFilter"),
+                Title = Localization.Get("Dialog_SelectProcess")
             };
 
             if (dialog.ShowDialog() == true)
@@ -836,13 +996,13 @@ namespace BASpark
         private void RebuildVisualResetItems()
         {
             VisualResetItems.Clear();
-            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.EffectScale, "缩放比例", "默认 1.50 ×"));
-            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.EffectOpacity, "全局不透明度", "默认 100 %"));
-            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.UnifiedAnimationSpeed, "统一动画速度", "开启「同一速度」并默认 1.00 ×"));
-            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.TrailAnimationSpeed, "拖尾动画速度", "独立项默认 1.00 ×"));
-            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.ClickAnimationSpeed, "点击动画速度", "独立项默认 1.00 ×"));
-            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.TrailRefreshRate, "拖尾刷新率", "默认 40 Hz"));
-            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.ParticleColor, "特效主题颜色", "默认 RGB(45,175,255)"));
+            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.EffectScale, Localization.Get("VisualReset_Scale"), Localization.Get("VisualReset_Scale_Sub")));
+            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.EffectOpacity, Localization.Get("VisualReset_Opacity"), Localization.Get("VisualReset_Opacity_Sub")));
+            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.UnifiedAnimationSpeed, Localization.Get("VisualReset_UnifiedSpeed"), Localization.Get("VisualReset_UnifiedSpeed_Sub")));
+            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.TrailAnimationSpeed, Localization.Get("VisualReset_TrailSpeed"), Localization.Get("VisualReset_TrailSpeed_Sub")));
+            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.ClickAnimationSpeed, Localization.Get("VisualReset_ClickSpeed"), Localization.Get("VisualReset_ClickSpeed_Sub")));
+            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.TrailRefreshRate, Localization.Get("VisualReset_TrailRefresh"), Localization.Get("VisualReset_TrailRefresh_Sub")));
+            VisualResetItems.Add(new VisualResetItem(VisualAppearanceResetFlags.ParticleColor, Localization.Get("VisualReset_Color"), Localization.Get("VisualReset_Color_Sub")));
         }
 
         private void OpenVisualResetOverlay_Click(object sender, RoutedEventArgs e)
@@ -909,7 +1069,12 @@ namespace BASpark
 
             if (flags == VisualAppearanceResetFlags.None)
             {
-                System.Windows.MessageBox.Show(this, "请至少选择一项要恢复的内容。", "恢复默认设置", MessageBoxButton.OK, MessageBoxImage.Information);
+                System.Windows.MessageBox.Show(
+                    this,
+                    Localization.Get("Msg_SelectVisualReset"),
+                    Localization.Get("Msg_VisualReset_Title"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
                 return;
             }
 
@@ -925,7 +1090,12 @@ namespace BASpark
             App.Overlay?.UpdateTrailRefreshRate(trailRefreshRate);
 
             VisualResetOverlay.Visibility = Visibility.Collapsed;
-            System.Windows.MessageBox.Show(this, "所选视觉表现项已恢复为默认值并已保存。", "恢复默认设置", MessageBoxButton.OK, MessageBoxImage.Information);
+            System.Windows.MessageBox.Show(
+                this,
+                Localization.Get("Msg_VisualResetDone"),
+                Localization.Get("Msg_VisualReset_Title"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
 
         private void AddProcessToActiveProfile(string processName)
@@ -946,6 +1116,16 @@ namespace BASpark
 
         private void SaveSettings_Click(object sender, RoutedEventArgs e)
         {
+            string? selectedLanguage = GetSelectedLanguage();
+            bool languageChanged = !string.IsNullOrWhiteSpace(selectedLanguage) &&
+                !string.Equals(selectedLanguage, _languageAtLoad, StringComparison.OrdinalIgnoreCase);
+
+            if (!string.IsNullOrWhiteSpace(selectedLanguage))
+            {
+                ConfigManager.Save("UiLanguage", selectedLanguage);
+                Localization.ApplyCulture(selectedLanguage);
+            }
+
             double effectScale = Math.Round(SliderScale.Value, 2);
             double effectOpacity = Math.Round(SliderOpacity.Value / 100.0, 2);
             bool useLinkedAnimationSpeed = CheckLinkedAnimationSpeed.IsChecked == true;
@@ -996,6 +1176,11 @@ namespace BASpark
             ConfigManager.Save("TrailRefreshRate", trailRefreshRate);
             ConfigManager.Save("TotalClicks", ConfigManager.TotalClicks);
             ConfigManager.Save("EnableAlwaysTrailEffect", CheckAlwaysTrailEffectSwitch.IsChecked ?? false);
+            var scrollbarVisibility = RadioScrollbarAlways.IsChecked == true
+                ? PanelScrollbarVisibility.Always
+                : PanelScrollbarVisibility.OnScroll;
+            ConfigManager.Save("ScrollbarVisibility", scrollbarVisibility);
+            ApplyScrollbarSettings();
             ConfigManager.Save("StartSilent", startSilentEnabled);
             ConfigManager.Save("EnableEnvironmentFilter", CheckEnvironmentFilter.IsChecked ?? false);
             ConfigManager.Save("HideInFullscreen", CheckHideInFullscreen.IsChecked ?? true);
@@ -1012,7 +1197,12 @@ namespace BASpark
 
             if (selectedIds.Count == 0)
             {
-                System.Windows.MessageBox.Show(this, "至少需要启用一个屏幕。", "多屏控制", MessageBoxButton.OK, MessageBoxImage.Warning);
+                System.Windows.MessageBox.Show(
+                    this,
+                    Localization.Get("Msg_MinOneScreen"),
+                    Localization.Get("Msg_MultiScreen_Title"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
@@ -1043,10 +1233,11 @@ namespace BASpark
             bool isCurrentAdmin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
             if (runAsAdminEnabled && !isCurrentAdmin)
             {
-                var res = System.Windows.MessageBox.Show(this,
-                    "需要以管理员权限重启应用以应用设置，是否立即重启？", 
-                    "需要权限", 
-                    MessageBoxButton.YesNo, 
+                var res = System.Windows.MessageBox.Show(
+                    this,
+                    Localization.Get("Msg_AdminRestart"),
+                    Localization.Get("Msg_AdminRestart_Title"),
+                    MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
                 
                 if (res == MessageBoxResult.Yes)
@@ -1056,7 +1247,37 @@ namespace BASpark
                 }
             }
 
-            System.Windows.MessageBox.Show(this, "配置已成功应用！", "BASpark", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (languageChanged)
+            {
+                UiLocalizer.ApplyControlPanel(this);
+                LoadScreenOptions();
+                ConfigManager.Save("LastNoticeContent", string.Empty);
+                LoadRemoteNotice();
+                _languageAtLoad = selectedLanguage!;
+
+                var restartRes = System.Windows.MessageBox.Show(
+                    this,
+                    Localization.Get("Msg_LanguageRestart"),
+                    Localization.Get("Msg_LanguageRestart_Title"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (restartRes == MessageBoxResult.Yes)
+                {
+                    if (System.Windows.Application.Current is App app)
+                    {
+                        app.RestartApplicationFromPanel();
+                    }
+                    return;
+                }
+            }
+
+            System.Windows.MessageBox.Show(
+                this,
+                Localization.Get("Msg_SettingsApplied"),
+                Localization.Get("App_Title_ControlPanel"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
 
         private void RefreshScreenOptions_Click(object sender, RoutedEventArgs e)
@@ -1177,7 +1398,11 @@ namespace BASpark
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show("提权重启失败，请尝试手动右键以管理员身份运行。\n错误信息: " + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Windows.MessageBox.Show(
+                    Localization.Format("Msg_RestartAdminFailed", ex.Message),
+                    Localization.Get("Msg_Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -1242,8 +1467,8 @@ namespace BASpark
         private void ResetConfig_Click(object sender, RoutedEventArgs e)
         {
             var result = System.Windows.MessageBox.Show(
-                "确定要重置所有配置吗？这将会清空所有配置，程序随后将关闭。",
-                "确认重置",
+                Localization.Get("Msg_ConfirmReset"),
+                Localization.Get("Msg_ConfirmReset_Title"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
@@ -1256,7 +1481,7 @@ namespace BASpark
                 }
                 catch (Exception ex)
                 {
-                    System.Windows.MessageBox.Show("删除失败: " + ex.Message);
+                    System.Windows.MessageBox.Show(Localization.Format("Msg_DeleteFailed", ex.Message));
                 }
             }
         }

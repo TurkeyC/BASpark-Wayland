@@ -100,6 +100,8 @@ namespace BASpark
         private WinEventProcDelegate? _foregroundWinEventDelegate;
         private System.Threading.Timer? _screenshotFailsafeTimer;
         private DispatcherTimer? _screenshotEndDebounceTimer;
+        private long _lastResumeRecoveryTicks;
+        private static readonly long ResumeRecoveryDebounceTicks = TimeSpan.FromSeconds(2).Ticks;
 
         private delegate void WinEventProcDelegate(
             IntPtr hWinEventHook,
@@ -124,6 +126,8 @@ namespace BASpark
             SetupGlobalHooks();
             UpdateTrailRefreshRate(ConfigManager.TrailRefreshRate);
             SystemEvents.DisplaySettingsChanged += HandleDisplaySettingsChanged;
+            SystemEvents.PowerModeChanged += HandlePowerModeChanged;
+            SystemEvents.SessionSwitch += HandleSessionSwitch;
         }
 
         public void UpdateColor(string color) => ForEachOverlay(w => w.UpdateColor(color));
@@ -880,7 +884,60 @@ namespace BASpark
         {
             _ = sender;
             _ = e;
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => RebuildWindows(forceRebuild: true)));
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => RecoverAfterSystemResume()));
+        }
+
+        private void HandlePowerModeChanged(object sender, PowerModeChangedEventArgs e)
+        {
+            if (e.Mode == PowerModes.Resume)
+            {
+                ScheduleResumeRecovery();
+            }
+        }
+
+        private void HandleSessionSwitch(object sender, SessionSwitchEventArgs e)
+        {
+            if (e.Reason == SessionSwitchReason.SessionUnlock)
+            {
+                ScheduleResumeRecovery();
+            }
+        }
+
+        private void ScheduleResumeRecovery()
+        {
+            long nowTicks = DateTime.UtcNow.Ticks;
+            if (nowTicks - _lastResumeRecoveryTicks < ResumeRecoveryDebounceTicks)
+            {
+                return;
+            }
+
+            _lastResumeRecoveryTicks = nowTicks;
+            System.Threading.Tasks.Task.Delay(1500).ContinueWith(_ =>
+            {
+                var app = System.Windows.Application.Current;
+                if (app == null) return;
+
+                app.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (_disposed) return;
+                    try
+                    {
+                        RecoverAfterSystemResume();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine("Resume recovery failed: " + ex.Message);
+                    }
+                }));
+            });
+        }
+
+        private void RecoverAfterSystemResume()
+        {
+            RebuildWindows(forceRebuild: true);
+            SetupGlobalHooks();
+            UpdateTrailRefreshRate(ConfigManager.TrailRefreshRate);
+            RefreshEnvironmentFilterState();
         }
 
         private void ForEachOverlay(Action<MainWindow> action)
@@ -897,6 +954,8 @@ namespace BASpark
             _disposed = true;
 
             SystemEvents.DisplaySettingsChanged -= HandleDisplaySettingsChanged;
+            SystemEvents.PowerModeChanged -= HandlePowerModeChanged;
+            SystemEvents.SessionSwitch -= HandleSessionSwitch;
             TeardownScreenshotCompatCaptureSurfaces();
             EndScreenshotCaptureSession();
             if (_globalHook != null)

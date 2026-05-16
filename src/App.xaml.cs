@@ -25,14 +25,47 @@ namespace BASpark
 
             if (!createdNew)
             {
-                System.Windows.MessageBox.Show("BASpark 已经在运行中，请检查系统托盘。", "提示",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                ConfigManager.Load();
+                if (!string.IsNullOrWhiteSpace(ConfigManager.UiLanguage))
+                {
+                    Localization.ApplyCulture(ConfigManager.UiLanguage);
+                }
+
+                System.Windows.MessageBox.Show(
+                    Localization.Get("App_AlreadyRunning"),
+                    Localization.Get("App_AlreadyRunning_Title"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
 
                 System.Windows.Application.Current.Shutdown();
                 return;
             }
 
             ConfigManager.Load();
+
+            if (string.IsNullOrWhiteSpace(ConfigManager.UiLanguage))
+            {
+                if (!ConfigManager.AgreedToPrivacy)
+                {
+                    var languageWin = new LanguageSelectWindow();
+                    bool? langResult = languageWin.ShowDialog();
+                    if (langResult != true)
+                    {
+                        ExitApplication();
+                        return;
+                    }
+                }
+                else
+                {
+                    string detected = Localization.DetectCultureFromSystem();
+                    Localization.ApplyCulture(detected);
+                    ConfigManager.Save("UiLanguage", detected);
+                }
+            }
+            else
+            {
+                Localization.ApplyCulture(ConfigManager.UiLanguage);
+            }
 
             if (ConfigManager.RunAsAdmin && !IsRunningAsAdmin())
             {
@@ -56,6 +89,7 @@ namespace BASpark
             if (!ConfigManager.AgreedToPrivacy)
             {
                 var privacyWin = new PrivacyWindow();
+                UiLocalizer.ApplyPrivacy(privacyWin);
                 bool? result = privacyWin.ShowDialog();
                 if (result == true)
                 {
@@ -148,15 +182,23 @@ namespace BASpark
             }
 
             _notifyIcon.Visible = true;
-            _notifyIcon.Text = "BASpark - 点击特效";
+            RefreshTrayLocalization();
             _notifyIcon.DoubleClick += (s, e) => ShowControlPanel();
 
             var contextMenu = new System.Windows.Forms.ContextMenuStrip();
-            contextMenu.Items.Add("打开控制面板", null, (s, e) => ShowControlPanel());
+            contextMenu.Items.Add(Localization.Get("Tray_OpenPanel"), null, (s, e) => ShowControlPanel());
             contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            contextMenu.Items.Add("重启应用", null, (s, e) => RestartApplication());
-            contextMenu.Items.Add("彻底退出", null, (s, e) => ExitApplication());
+            contextMenu.Items.Add(Localization.Get("Tray_Restart"), null, (s, e) => RestartApplication());
+            contextMenu.Items.Add(Localization.Get("Tray_Exit"), null, (s, e) => ExitApplication());
             _notifyIcon.ContextMenuStrip = contextMenu;
+        }
+
+        private void RefreshTrayLocalization()
+        {
+            if (_notifyIcon != null)
+            {
+                _notifyIcon.Text = Localization.Get("Tray_Text");
+            }
         }
 
         public void ShowControlPanel()
@@ -179,6 +221,11 @@ namespace BASpark
             });
         }
 
+        public void RestartApplicationFromPanel()
+        {
+            RestartApplication();
+        }
+
         private void RestartApplication()
         {
             try
@@ -197,7 +244,8 @@ namespace BASpark
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show("重启失败: " + ex.Message);
+                System.Windows.MessageBox.Show(
+                    Localization.Format("Tray_RestartFailed", ex.Message));
             }
         }
 

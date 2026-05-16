@@ -83,6 +83,7 @@ namespace BASpark
 
         private System.Windows.Threading.DispatcherTimer? _topmostTimer;
         private EventHandler<CoreWebView2NavigationCompletedEventArgs>? _navigationCompletedHandler;
+        private EventHandler<CoreWebView2ProcessFailedEventArgs>? _processFailedHandler;
         private CoreWebView2? _coreWebView;
         private WinEventDelegate? _winEventDelegate;
         private IntPtr _winEventHook = IntPtr.Zero;
@@ -283,6 +284,9 @@ namespace BASpark
                 coreWebView.Settings.AreDefaultContextMenusEnabled = false;
                 coreWebView.Settings.IsStatusBarEnabled = false;
 
+                _processFailedHandler = OnWebViewProcessFailed;
+                coreWebView.ProcessFailed += _processFailedHandler;
+
                 var streamInfo = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/Web/index.html"));
                 if (streamInfo != null)
                 {
@@ -308,8 +312,25 @@ namespace BASpark
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show("WebView2 初始化失败: " + ex.Message);
+                System.Windows.MessageBox.Show(Localization.Format("WebView2_InitFailed", ex.Message));
             }
+        }
+
+        private void OnWebViewProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
+        {
+            if (_isClosing) return;
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_isClosing) return;
+                if (_coreWebView != null && _processFailedHandler != null)
+                {
+                    try { _coreWebView.ProcessFailed -= _processFailedHandler; } catch { }
+                }
+                _processFailedHandler = null;
+                _coreWebView = null;
+                _ = InitWebView();
+            }));
         }
 
         private static bool IsCursorVisible()
@@ -512,16 +533,31 @@ namespace BASpark
                 _topmostTimer = null;
             }
 
-            if (_coreWebView != null && _navigationCompletedHandler != null)
+            if (_coreWebView != null)
             {
-                try
+                if (_navigationCompletedHandler != null)
                 {
-                    _coreWebView.NavigationCompleted -= _navigationCompletedHandler;
+                    try
+                    {
+                        _coreWebView.NavigationCompleted -= _navigationCompletedHandler;
+                    }
+                    catch (Exception ex) when (IsExpectedWebViewShutdownException(ex))
+                    {
+                    }
+                    _navigationCompletedHandler = null;
                 }
-                catch (Exception ex) when (IsExpectedWebViewShutdownException(ex))
+
+                if (_processFailedHandler != null)
                 {
+                    try
+                    {
+                        _coreWebView.ProcessFailed -= _processFailedHandler;
+                    }
+                    catch (Exception ex) when (IsExpectedWebViewShutdownException(ex))
+                    {
+                    }
+                    _processFailedHandler = null;
                 }
-                _navigationCompletedHandler = null;
             }
             _coreWebView = null;
 
