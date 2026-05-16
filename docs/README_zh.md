@@ -5,7 +5,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/DoomVoss/BASpark?style=social)](https://github.com/DoomVoss/BASpark/stargazers)
 [![GitHub license](https://img.shields.io/github/license/DoomVoss/BASpark)](https://github.com/DoomVoss/BASpark/blob/main/LICENSE)
 [![GitHub issues](https://img.shields.io/github/issues/DoomVoss/BASpark)](https://github.com/DoomVoss/BASpark/issues)
-[![Discord](https://img.shields.io/badge/Discord-Join-7289DA)](https://discord.gg/9AnNczfjVT)
+[![Discord](https://img.shields.io/badge/Discord-Join-7289DA)](https://discord.gg/sgZMdqhfZu)
 [![QQ](https://img.shields.io/badge/QQ-Doom-blue)](https://qm.qq.com/q/oGwB5mKQtq)
 
 🌐 **Languages:** [English](../README.md) | 简体中文
