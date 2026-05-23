@@ -31,6 +31,13 @@ namespace BASpark
         OnScroll
     }
 
+    public enum NetworkRegionOption
+    {
+        Auto,
+        China,
+        Global
+    }
+
     public class FilterProfile
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -81,7 +88,11 @@ namespace BASpark
         public static string EnabledScreenIds { get; set; } = "";
         public static string ScreenSelections { get; set; } = "";
         public static string UiLanguage { get; set; } = "";
+        public static NetworkRegionOption NetworkRegion { get; set; } = NetworkRegionOption.Auto;
         public static PanelScrollbarVisibility ScrollbarVisibility { get; set; } = PanelScrollbarVisibility.OnScroll;
+        public static string SidebarBackgroundImagePath { get; set; } = "";
+        public static string TelemetryClientId { get; set; } = "";
+        public static string LastTelemetrySentUtc { get; set; } = "";
 
         private static List<FilterProfile> _profiles = new List<FilterProfile>();
 
@@ -121,7 +132,11 @@ namespace BASpark
                         EnabledScreenIds = key.GetValue("EnabledScreenIds", "")?.ToString() ?? "";
                         ScreenSelections = key.GetValue("ScreenSelections", "")?.ToString() ?? "";
                         UiLanguage = key.GetValue("UiLanguage", "")?.ToString() ?? "";
+                        NetworkRegion = ParseNetworkRegion(key.GetValue("NetworkRegion", "Auto")?.ToString());
                         ScrollbarVisibility = ParseScrollbarVisibility(key.GetValue("ScrollbarVisibility", "OnScroll")?.ToString());
+                        SidebarBackgroundImagePath = key.GetValue("SidebarBackgroundImagePath", "")?.ToString() ?? "";
+                        TelemetryClientId = key.GetValue("TelemetryClientId", "")?.ToString() ?? "";
+                        LastTelemetrySentUtc = key.GetValue("LastTelemetrySentUtc", "")?.ToString() ?? "";
                         if (!string.IsNullOrWhiteSpace(UiLanguage))
                         {
                             Localization.ApplyCulture(UiLanguage);
@@ -183,6 +198,21 @@ namespace BASpark
             }
 
             return PanelScrollbarVisibility.OnScroll;
+        }
+
+        public static NetworkRegionOption ParseNetworkRegion(string? raw)
+        {
+            if (string.Equals(raw, "China", StringComparison.OrdinalIgnoreCase))
+            {
+                return NetworkRegionOption.China;
+            }
+
+            if (string.Equals(raw, "Global", StringComparison.OrdinalIgnoreCase))
+            {
+                return NetworkRegionOption.Global;
+            }
+
+            return NetworkRegionOption.Auto;
         }
 
         public static void GetAnimationSpeedsForOverlay(out double trailSpeed, out double clickSpeed)
@@ -483,6 +513,10 @@ namespace BASpark
                 EnabledScreenIds = "";
                 ScreenSelections = "";
                 UiLanguage = "";
+                NetworkRegion = NetworkRegionOption.Auto;
+                SidebarBackgroundImagePath = "";
+                TelemetryClientId = "";
+                LastTelemetrySentUtc = "";
             }
             catch { }
         }

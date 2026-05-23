@@ -80,6 +80,10 @@ namespace BASpark
         private bool _isCheckingUpdate = false;
         private bool _suspendLinkedAnimationUiHandlers;
         private string _languageAtLoad = Localization.CultureZhCn;
+        private NetworkRegionOption _networkRegionAtLoad = NetworkRegionOption.Auto;
+        private bool _autoNetworkFailurePromptShown;
+        private bool _logViewInitialized;
+        private readonly object _networkPromptLock = new();
 
         public ObservableCollection<FilterProfile> Profiles { get; set; } = new ObservableCollection<FilterProfile>();
         public ObservableCollection<string> CurrentProfileProcesses { get; set; } = new ObservableCollection<string>();
@@ -94,6 +98,7 @@ namespace BASpark
             _languageAtLoad = string.IsNullOrWhiteSpace(ConfigManager.UiLanguage)
                 ? Localization.CurrentCultureName
                 : ConfigManager.UiLanguage;
+            _networkRegionAtLoad = ConfigManager.NetworkRegion;
 
             ComboProfiles.ItemsSource = Profiles;
             ListConfiguredProcesses.ItemsSource = CurrentProfileProcesses;
@@ -107,8 +112,12 @@ namespace BASpark
             UiLocalizer.ApplyControlPanel(this);
             LoadScreenOptions();
             CheckAdminStatus();
-            LoadRemoteNotice();
-            
+            InitLogView();
+            AppLogger.EntryAdded += OnAppLogEntryAdded;
+            Closed += (_, _) => AppLogger.EntryAdded -= OnAppLogEntryAdded;
+            _ = ApplySidebarBackgroundAsync(ConfigManager.SidebarBackgroundImagePath);
+            _ = LoadRemoteNoticeAsync(isManual: false);
+
             _ = CheckForUpdates(isManual: false);
 
             _refreshTimer = new DispatcherTimer();
@@ -118,7 +127,7 @@ namespace BASpark
 
             _noticeTimer = new DispatcherTimer();
             _noticeTimer.Interval = TimeSpan.FromHours(3);
-            _noticeTimer.Tick += (s, e) => LoadRemoteNotice();
+            _noticeTimer.Tick += (_, _) => _ = LoadRemoteNoticeAsync(isManual: false);
             _noticeTimer.Start();
         }
 
@@ -212,21 +221,8 @@ namespace BASpark
             }
             catch (Exception ex)
             {
-                if (isManual)
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        System.Windows.MessageBox.Show(
-                            Localization.Format("Msg_CheckUpdateFailed", ex.Message),
-                            Localization.Get("Msg_NetworkError"),
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Error);
-                    });
-                }
-                else
-                {
-                    Debug.WriteLine("自动检查更新失败: " + ex.Message);
-                }
+                AppLogger.Warn($"Update check failed: {ex.Message}");
+                HandleNetworkFetchFailure(isManual, ex.Message);
             }
         }
 
@@ -255,7 +251,7 @@ namespace BASpark
             }
         }
 
-        private async void LoadRemoteNotice()
+        private async Task LoadRemoteNoticeAsync(bool isManual)
         {
             string noticeUrl = Localization.GetRemoteNoticeUrl();
             try
@@ -288,8 +284,9 @@ namespace BASpark
                     }
                 });
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Warn($"Notice fetch failed: {ex.Message}");
                 Dispatcher.Invoke(() =>
                 {
                     if (string.IsNullOrEmpty(NoticeContent.Text) || NoticeContent.Text == "...")
@@ -297,8 +294,74 @@ namespace BASpark
                         NoticeBar.Visibility = Visibility.Collapsed;
                     }
                 });
+                HandleNetworkFetchFailure(isManual, ex.Message);
             }
         }
+
+        private void HandleNetworkFetchFailure(bool isManual, string errorMessage)
+        {
+            lock (_networkPromptLock)
+            {
+                if (!isManual && _autoNetworkFailurePromptShown)
+                {
+                    return;
+                }
+
+                if (!isManual)
+                {
+                    _autoNetworkFailurePromptShown = true;
+                }
+            }
+
+            Dispatcher.Invoke(() => PromptSwitchNetworkSource(isManual, errorMessage));
+        }
+
+        private void PromptSwitchNetworkSource(bool isManual, string errorMessage)
+        {
+            NetworkRegionOption alternateRegion = GetAlternateNetworkRegion();
+            string currentLabel = GetNetworkRegionLabel(ConfigManager.NetworkRegion);
+            string alternateLabel = GetNetworkRegionLabel(alternateRegion);
+            string message = isManual
+                ? Localization.Format("Msg_SwitchNetworkSourcePromptManual", errorMessage, currentLabel, alternateLabel)
+                : Localization.Format("Msg_SwitchNetworkSourcePromptAuto", alternateLabel);
+
+            var result = System.Windows.MessageBox.Show(
+                this,
+                message,
+                Localization.Get("Msg_SwitchNetworkSource_Title"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            ConfigManager.Save("NetworkRegion", alternateRegion);
+            _networkRegionAtLoad = alternateRegion;
+            SelectNetworkRegion(alternateRegion);
+            UiLocalizer.ApplyControlPanel(this);
+            ConfigManager.Save("LastNoticeContent", string.Empty);
+            AppLogger.Info($"Network source switched to {alternateRegion}.");
+            _ = LoadRemoteNoticeAsync(isManual: false);
+            if (isManual)
+            {
+                _ = CheckForUpdates(isManual: true);
+            }
+        }
+
+        private static NetworkRegionOption GetAlternateNetworkRegion() =>
+            Localization.UseChinaNetworkEndpoint()
+                ? NetworkRegionOption.Global
+                : NetworkRegionOption.China;
+
+        private static string GetNetworkRegionLabel(NetworkRegionOption region) =>
+            region switch
+            {
+                NetworkRegionOption.China => Localization.Get("Basic_NetworkRegionChina"),
+                NetworkRegionOption.Global => Localization.Get("Basic_NetworkRegionGlobal"),
+                _ => Localization.Get("Basic_NetworkRegionAuto")
+            };
 
         private void ShowWindowsNotification(string title, string content)
         {
@@ -317,14 +380,25 @@ namespace BASpark
             try
             {
                 Version? version = Assembly.GetExecutingAssembly().GetName().Version;
-                if (version != null && VersionText != null)
+                if (version != null)
                 {
-                    VersionText.Text = $"V{version.Major}.{version.Minor}.{version.Build}";
+                    string versionText = $"BASpark V{version.Major}.{version.Minor}.{version.Build}";
+                    if (VersionText != null)
+                    {
+                        VersionText.Text = versionText;
+                    }
+
+                    if (TxtSidebarVersion != null)
+                    {
+                        TxtSidebarVersion.Text = versionText;
+                    }
                 }
             }
             catch
             {
-                if (VersionText != null) VersionText.Text = Localization.Get("Version_ReadFailed");
+                string failed = Localization.Get("Version_ReadFailed");
+                if (VersionText != null) VersionText.Text = failed;
+                if (TxtSidebarVersion != null) TxtSidebarVersion.Text = failed;
             }
         }
 
@@ -522,29 +596,67 @@ namespace BASpark
             {
                 RadioScrollbarOnScroll.IsChecked = true;
             }
+
+            SelectNetworkRegion(ConfigManager.NetworkRegion);
+            if (TxtSidebarBackgroundPath != null)
+            {
+                TxtSidebarBackgroundPath.Text = ConfigManager.SidebarBackgroundImagePath;
+            }
+        }
+
+        private void SelectNetworkRegion(NetworkRegionOption region)
+        {
+            switch (region)
+            {
+                case NetworkRegionOption.China:
+                    RadioNetworkRegionChina.IsChecked = true;
+                    break;
+                case NetworkRegionOption.Global:
+                    RadioNetworkRegionGlobal.IsChecked = true;
+                    break;
+                default:
+                    RadioNetworkRegionAuto.IsChecked = true;
+                    break;
+            }
+        }
+
+        private NetworkRegionOption GetSelectedNetworkRegion()
+        {
+            if (RadioNetworkRegionChina.IsChecked == true)
+            {
+                return NetworkRegionOption.China;
+            }
+
+            if (RadioNetworkRegionGlobal.IsChecked == true)
+            {
+                return NetworkRegionOption.Global;
+            }
+
+            return NetworkRegionOption.Auto;
         }
 
         private void ApplyScrollbarSettings()
         {
             _scrollbarHideTimer?.Stop();
-            if (ConfigManager.ScrollbarVisibility == PanelScrollbarVisibility.Always)
-            {
-                MainContentScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Visible;
-            }
-            else
-            {
-                MainContentScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
-            }
+            ApplyScrollbarVisibility(MainContentScrollViewer);
+            ApplyScrollbarVisibility(SettingsContentScrollViewer);
         }
 
-        private void ShowScrollbarTemporarily()
+        private void ApplyScrollbarVisibility(ScrollViewer scrollViewer)
+        {
+            scrollViewer.VerticalScrollBarVisibility = ConfigManager.ScrollbarVisibility == PanelScrollbarVisibility.Always
+                ? ScrollBarVisibility.Visible
+                : ScrollBarVisibility.Hidden;
+        }
+
+        private void ShowScrollbarTemporarily(ScrollViewer scrollViewer)
         {
             if (ConfigManager.ScrollbarVisibility != PanelScrollbarVisibility.OnScroll)
             {
                 return;
             }
 
-            MainContentScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Visible;
+            scrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Visible;
             _scrollbarHideTimer?.Stop();
             _scrollbarHideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
             _scrollbarHideTimer.Tick += (_, _) =>
@@ -552,7 +664,8 @@ namespace BASpark
                 _scrollbarHideTimer?.Stop();
                 if (ConfigManager.ScrollbarVisibility == PanelScrollbarVisibility.OnScroll)
                 {
-                    MainContentScrollViewer.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
+                    ApplyScrollbarVisibility(MainContentScrollViewer);
+                    ApplyScrollbarVisibility(SettingsContentScrollViewer);
                 }
             };
             _scrollbarHideTimer.Start();
@@ -562,13 +675,26 @@ namespace BASpark
         {
             if (Math.Abs(e.VerticalChange) > 0.01 || Math.Abs(e.HorizontalChange) > 0.01)
             {
-                ShowScrollbarTemporarily();
+                ShowScrollbarTemporarily(MainContentScrollViewer);
             }
         }
 
         private void MainContentScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            ShowScrollbarTemporarily();
+            ShowScrollbarTemporarily(MainContentScrollViewer);
+        }
+
+        private void SettingsContentScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (Math.Abs(e.VerticalChange) > 0.01 || Math.Abs(e.HorizontalChange) > 0.01)
+            {
+                ShowScrollbarTemporarily(SettingsContentScrollViewer);
+            }
+        }
+
+        private void SettingsContentScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            ShowScrollbarTemporarily(SettingsContentScrollViewer);
         }
 
         private void LoadScreenOptions()
@@ -721,11 +847,111 @@ namespace BASpark
             if (PageWelcome == null) return;
             PageWelcome.Visibility = Visibility.Collapsed;
             PageSettings.Visibility = Visibility.Collapsed;
+            PageLog.Visibility = Visibility.Collapsed;
             PageAbout.Visibility = Visibility.Collapsed;
 
             if (TabWelcome.IsChecked == true) PageWelcome.Visibility = Visibility.Visible;
             else if (TabSettings.IsChecked == true) PageSettings.Visibility = Visibility.Visible;
+            else if (TabLog.IsChecked == true) PageLog.Visibility = Visibility.Visible;
             else if (TabAbout.IsChecked == true) PageAbout.Visibility = Visibility.Visible;
+        }
+
+        private void InitLogView()
+        {
+            if (_logViewInitialized || TxtAppLog == null)
+            {
+                return;
+            }
+
+            _logViewInitialized = true;
+            TxtAppLog.Text = string.Join(Environment.NewLine, AppLogger.GetEntries());
+            TxtAppLog.ScrollToEnd();
+        }
+
+        private void OnAppLogEntryAdded(string line)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                AppendLogLine(line);
+            });
+        }
+
+        private void AppendLogLine(string line)
+        {
+            if (TxtAppLog == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(TxtAppLog.Text))
+            {
+                TxtAppLog.Text = line;
+            }
+            else
+            {
+                TxtAppLog.AppendText(Environment.NewLine + line);
+            }
+
+            TxtAppLog.ScrollToEnd();
+            LogScrollViewer?.ScrollToEnd();
+        }
+
+        private void ClearLog_Click(object sender, RoutedEventArgs e)
+        {
+            _ = sender;
+            _ = e;
+            if (TxtAppLog != null)
+            {
+                TxtAppLog.Clear();
+            }
+
+            AppLogger.Clear();
+            AppLogger.Info("Log view cleared by user.");
+        }
+
+        private async Task ApplySidebarBackgroundAsync(string? path)
+        {
+            try
+            {
+                SidebarBackgroundHelper.ClearCache();
+                var brush = await SidebarBackgroundHelper.LoadBrushAsync(path);
+                Dispatcher.Invoke(() =>
+                {
+                    if (SidebarBackgroundHost == null)
+                    {
+                        return;
+                    }
+
+                    SidebarBackgroundHost.Background = (System.Windows.Media.Brush?)brush ?? System.Windows.Media.Brushes.White;
+                });
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error("Failed to apply sidebar background.", ex);
+            }
+        }
+
+        private void BrowseSidebarBackground_Click(object sender, RoutedEventArgs e)
+        {
+            _ = sender;
+            _ = e;
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = Localization.Get("Dialog_ImageFilter"),
+                Title = Localization.Get("More_SidebarBackgroundBrowse")
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                TxtSidebarBackgroundPath.Text = dialog.FileName;
+            }
+        }
+
+        private void ClearSidebarBackground_Click(object sender, RoutedEventArgs e)
+        {
+            _ = sender;
+            _ = e;
+            TxtSidebarBackgroundPath.Text = string.Empty;
         }
 
         private void PickColor_Click(object sender, RoutedEventArgs e)
@@ -1119,6 +1345,8 @@ namespace BASpark
             string? selectedLanguage = GetSelectedLanguage();
             bool languageChanged = !string.IsNullOrWhiteSpace(selectedLanguage) &&
                 !string.Equals(selectedLanguage, _languageAtLoad, StringComparison.OrdinalIgnoreCase);
+            NetworkRegionOption selectedNetworkRegion = GetSelectedNetworkRegion();
+            bool networkRegionChanged = selectedNetworkRegion != _networkRegionAtLoad;
 
             if (!string.IsNullOrWhiteSpace(selectedLanguage))
             {
@@ -1156,6 +1384,9 @@ namespace BASpark
             int clickType = 0;
             if (RadioRightClick.IsChecked == true) clickType = 1;
             else if (RadioBothClick.IsChecked == true) clickType = 2;
+
+            bool telemetryEnabled = CheckTelemetry.IsChecked ?? false;
+            bool telemetryWasEnabled = ConfigManager.EnableTelemetry;
             
             // 保存配置组
             string activeId = (ComboProfiles.SelectedItem as FilterProfile)?.Id ?? "";
@@ -1165,7 +1396,7 @@ namespace BASpark
             ConfigManager.Save("IsTouchscreenMode", isTouchscreenEnabled);
             ConfigManager.Save("IsEffectEnabled", CheckMasterSwitch.IsChecked ?? true);
             ConfigManager.Save("AutoStart", autoStartEnabled);
-            ConfigManager.Save("EnableTelemetry", CheckTelemetry.IsChecked ?? false);
+            ConfigManager.Save("EnableTelemetry", telemetryEnabled);
             ConfigManager.Save("ParticleColor", ConfigManager.ParticleColor);
             ConfigManager.Save("EffectScale", effectScale);
             ConfigManager.Save("EffectOpacity", effectOpacity);
@@ -1181,6 +1412,7 @@ namespace BASpark
                 : PanelScrollbarVisibility.OnScroll;
             ConfigManager.Save("ScrollbarVisibility", scrollbarVisibility);
             ApplyScrollbarSettings();
+            ConfigManager.Save("NetworkRegion", selectedNetworkRegion);
             ConfigManager.Save("StartSilent", startSilentEnabled);
             ConfigManager.Save("EnableEnvironmentFilter", CheckEnvironmentFilter.IsChecked ?? false);
             ConfigManager.Save("HideInFullscreen", CheckHideInFullscreen.IsChecked ?? true);
@@ -1188,6 +1420,31 @@ namespace BASpark
             ConfigManager.Save("ClickTriggerType", clickType);
             ConfigManager.Save("EnableMiddleClickTrigger", middleClickEnabled);
             ConfigManager.Save("ScreenshotCompatibilityMode", screenshotCompatibilityEnabled);
+
+            string sidebarBackgroundPath = TxtSidebarBackgroundPath?.Text?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(sidebarBackgroundPath))
+            {
+                if (!SidebarBackgroundHelper.IsSupportedImage(sidebarBackgroundPath) || !System.IO.File.Exists(sidebarBackgroundPath))
+                {
+                    System.Windows.MessageBox.Show(
+                        this,
+                        Localization.Get("Msg_InvalidSidebarBackground"),
+                        Localization.Get("More_Title"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            bool sidebarBackgroundChanged = !string.Equals(
+                sidebarBackgroundPath,
+                ConfigManager.SidebarBackgroundImagePath,
+                StringComparison.OrdinalIgnoreCase);
+            ConfigManager.Save("SidebarBackgroundImagePath", sidebarBackgroundPath);
+            if (sidebarBackgroundChanged)
+            {
+                _ = ApplySidebarBackgroundAsync(sidebarBackgroundPath);
+            }
 
             var previousEnabledScreenIds = ConfigManager.ResolveEnabledScreenDeviceNames(ScreenOptions.Select(CreateScreenIdentityInfo));
             var selectedIds = ScreenOptions
@@ -1252,7 +1509,7 @@ namespace BASpark
                 UiLocalizer.ApplyControlPanel(this);
                 LoadScreenOptions();
                 ConfigManager.Save("LastNoticeContent", string.Empty);
-                LoadRemoteNotice();
+                _ = LoadRemoteNoticeAsync(isManual: false);
                 _languageAtLoad = selectedLanguage!;
 
                 var restartRes = System.Windows.MessageBox.Show(
@@ -1270,6 +1527,18 @@ namespace BASpark
                     }
                     return;
                 }
+            }
+            else if (networkRegionChanged)
+            {
+                UiLocalizer.ApplyControlPanel(this);
+                ConfigManager.Save("LastNoticeContent", string.Empty);
+                _ = LoadRemoteNoticeAsync(isManual: false);
+                _networkRegionAtLoad = selectedNetworkRegion;
+            }
+
+            if (telemetryEnabled && (!telemetryWasEnabled || networkRegionChanged))
+            {
+                TelemetryHelper.SendStartupData();
             }
 
             System.Windows.MessageBox.Show(

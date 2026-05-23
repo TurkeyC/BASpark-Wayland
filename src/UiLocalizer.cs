@@ -42,7 +42,10 @@ namespace BASpark
             w.SubTabVisualLabel.Text = Localization.Get("Nav_Visual");
             w.SubTabFilterLabel.Text = Localization.Get("Nav_Filter");
             w.SubTabMultiScreenLabel.Text = Localization.Get("Nav_MultiScreen");
+            w.SubTabMoreLabel.Text = Localization.Get("Nav_More");
+            w.TabLog.Content = Localization.Get("Nav_Log");
             w.TabAbout.Content = Localization.Get("Nav_About");
+            w.TxtSidebarCopyright.Text = Localization.Get("Sidebar_Copyright");
 
             w.TxtWelcomeTitle.Text = Localization.Get("Welcome_Title");
             w.TxtWelcomeSubtitle.Text = Localization.Get("Welcome_Subtitle");
@@ -57,6 +60,11 @@ namespace BASpark
 
             w.TxtBasicTitle.Text = Localization.Get("Basic_Title");
             w.TxtBasicLanguage.Text = Localization.Get("Basic_Language");
+            w.TxtBasicNetworkRegion.Text = Localization.Get("Basic_NetworkRegion");
+            w.RadioNetworkRegionAuto.Content = Localization.Get("Basic_NetworkRegionAuto");
+            w.RadioNetworkRegionChina.Content = Localization.Get("Basic_NetworkRegionChina");
+            w.RadioNetworkRegionGlobal.Content = Localization.Get("Basic_NetworkRegionGlobal");
+            w.TxtNetworkRegionHint.Text = Localization.Get("Basic_NetworkRegionHint");
             w.TxtScrollbarVisibility.Text = Localization.Get("Basic_ScrollbarVisibility");
             w.RadioScrollbarAlways.Content = Localization.Get("Basic_ScrollbarAlways");
             w.RadioScrollbarOnScroll.Content = Localization.Get("Basic_ScrollbarOnScroll");
@@ -113,6 +121,16 @@ namespace BASpark
             w.TxtMultiScreenTitle.Text = Localization.Get("MultiScreen_Title");
             w.BtnRefreshScreens.Content = Localization.Get("MultiScreen_Refresh");
             w.TxtMultiScreenHint.Text = Localization.Get("MultiScreen_Hint");
+
+            w.TxtMoreTitle.Text = Localization.Get("More_Title");
+            w.TxtSidebarBackground.Text = Localization.Get("More_SidebarBackground");
+            w.BtnBrowseSidebarBackground.Content = Localization.Get("More_Browse");
+            w.BtnClearSidebarBackground.Content = Localization.Get("More_Clear");
+            w.TxtSidebarBackgroundHint.Text = Localization.Get("More_SidebarBackgroundHint");
+
+            w.TxtLogTitle.Text = Localization.Get("Log_Title");
+            w.TxtLogHint.Text = Localization.Get("Log_Hint");
+            w.BtnClearLog.Content = Localization.Get("Log_Clear");
 
             w.TxtAboutTitle.Text = Localization.Get("About_Title");
             w.BtnCheckUpdate.Content = Localization.Get("About_CheckUpdate");

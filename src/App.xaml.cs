@@ -42,6 +42,7 @@ namespace BASpark
             }
 
             ConfigManager.Load();
+            AppLogger.Initialize();
 
             if (string.IsNullOrWhiteSpace(ConfigManager.UiLanguage))
             {
@@ -74,10 +75,11 @@ namespace BASpark
                     RestartWithAdminPrivileges(e.Args);
                     return;
                 }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine("自动请求管理员权限被拒绝或失败: " + ex.Message);
-                }
+            catch (Exception ex)
+            {
+                AppLogger.Error("Restart with admin privileges failed.", ex);
+                Debug.WriteLine("自动请求管理员权限被拒绝或失败: " + ex.Message);
+            }
             }
 
             SystemEvents.SessionEnding += OnSessionEnding;

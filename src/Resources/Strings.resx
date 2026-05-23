@@ -75,6 +75,21 @@
     <data name="Basic_Language" xml:space="preserve">
       <value>界面语言</value>
     </data>
+    <data name="Basic_NetworkRegion" xml:space="preserve">
+      <value>网络源</value>
+    </data>
+    <data name="Basic_NetworkRegionAuto" xml:space="preserve">
+      <value>跟随语言</value>
+    </data>
+    <data name="Basic_NetworkRegionChina" xml:space="preserve">
+      <value>中国大陆</value>
+    </data>
+    <data name="Basic_NetworkRegionGlobal" xml:space="preserve">
+      <value>全球</value>
+    </data>
+    <data name="Basic_NetworkRegionHint" xml:space="preserve">
+      <value>* 用于获取公告与检查更新；默认跟随界面语言自动选择（.cn / .top）。</value>
+    </data>
     <data name="Basic_LeftClick" xml:space="preserve">
       <value>仅左键</value>
     </data>
@@ -131,6 +146,9 @@
     </data>
     <data name="Dialog_ExeFilter" xml:space="preserve">
       <value>可执行文件 (*.exe)|*.exe</value>
+    </data>
+    <data name="Dialog_ImageFilter" xml:space="preserve">
+      <value>图片文件 (*.png;*.jpg;*.jpeg;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.webp</value>
     </data>
     <data name="Dialog_SelectProcess" xml:space="preserve">
       <value>选择应用进程</value>
@@ -265,6 +283,21 @@
     <data name="Msg_NetworkError" xml:space="preserve">
       <value>网络错误</value>
     </data>
+    <data name="Msg_SwitchNetworkSource_Title" xml:space="preserve">
+      <value>网络连接失败</value>
+    </data>
+    <data name="Msg_SwitchNetworkSourcePromptAuto" xml:space="preserve">
+      <value>获取公告或更新失败，可能是当前网络源不可用。是否切换到「{0}」并重试？</value>
+    </data>
+    <data name="Msg_SwitchNetworkSourcePromptManual" xml:space="preserve">
+      <value>请求失败：{0}
+
+当前网络源：{1}
+是否切换到「{2}」并重试？</value>
+    </data>
+    <data name="Msg_InvalidSidebarBackground" xml:space="preserve">
+      <value>无效的背景图片路径，请选择 PNG/JPG/BMP/WebP 格式的图片文件。</value>
+    </data>
     <data name="Msg_NoUpdateNotes" xml:space="preserve">
       <value>无更新说明</value>
     </data>
@@ -322,6 +355,36 @@
     <data name="MultiScreen_Title" xml:space="preserve">
       <value>多屏显示管理</value>
     </data>
+    <data name="More_Title" xml:space="preserve">
+      <value>更多设置</value>
+    </data>
+    <data name="More_SidebarBackground" xml:space="preserve">
+      <value>主菜单背景图片</value>
+    </data>
+    <data name="More_SidebarBackgroundBrowse" xml:space="preserve">
+      <value>选择背景图片</value>
+    </data>
+    <data name="More_SidebarBackgroundHint" xml:space="preserve">
+      <value>* 支持 PNG/JPG/BMP/WebP</value>
+    </data>
+    <data name="More_Browse" xml:space="preserve">
+      <value>浏览...</value>
+    </data>
+    <data name="More_Clear" xml:space="preserve">
+      <value>清除</value>
+    </data>
+    <data name="Log_Title" xml:space="preserve">
+      <value>运行日志</value>
+    </data>
+    <data name="Log_Hint" xml:space="preserve">
+      <value>实时显示软件运行状态与错误信息。</value>
+    </data>
+    <data name="Log_Clear" xml:space="preserve">
+      <value>清空日志</value>
+    </data>
+    <data name="Sidebar_Copyright" xml:space="preserve">
+      <value>Copyright © 2026 DoomVoss</value>
+    </data>
     <data name="Nav_About" xml:space="preserve">
       <value>关于</value>
     </data>
@@ -336,6 +399,12 @@
     </data>
     <data name="Nav_MultiScreen" xml:space="preserve">
       <value>多屏管理</value>
+    </data>
+    <data name="Nav_More" xml:space="preserve">
+      <value>更多设置</value>
+    </data>
+    <data name="Nav_Log" xml:space="preserve">
+      <value>日志</value>
     </data>
     <data name="Nav_Settings" xml:space="preserve">
       <value>设置</value>

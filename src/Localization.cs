@@ -86,7 +86,7 @@ namespace BASpark
                 ? $"{baseName}.json"
                 : $"{GetRemoteFileLanguagePrefix()}_{baseName}.json";
 
-            string host = IsChineseLocale
+            string host = UseChinaNetworkEndpoint()
                 ? "https://api.catbotstudio.cn"
                 : "https://api.catbotstudio.top";
 
@@ -96,10 +96,27 @@ namespace BASpark
         private static string GetRemoteFileLanguagePrefix() =>
             CurrentCultureName == CultureJa ? "jp" : "en";
 
+        public static bool UseChinaNetworkEndpoint() =>
+            ConfigManager.NetworkRegion switch
+            {
+                NetworkRegionOption.China => true,
+                NetworkRegionOption.Global => false,
+                _ => IsChineseLocale
+            };
+
         public static string GetOfficialWebsiteUrl() =>
-            IsChineseLocale
+            UseChinaNetworkEndpoint()
                 ? "https://basp.catbotstudio.cn"
                 : "https://basp.catbotstudio.top";
+
+        public static string GetTelemetryUrl()
+        {
+            string host = UseChinaNetworkEndpoint()
+                ? "https://api.catbotstudio.cn"
+                : "https://api.catbotstudio.top";
+
+            return $"{host}/v1/telemetry";
+        }
 
         public static string? GetDiscordUrl() =>
             string.IsNullOrWhiteSpace(Get("Link_Discord_Url")) ? null : Get("Link_Discord_Url");

@@ -75,6 +75,21 @@
     <data name="Basic_Language" xml:space="preserve">
       <value>表示言語</value>
     </data>
+    <data name="Basic_NetworkRegion" xml:space="preserve">
+      <value>ネットワークソース</value>
+    </data>
+    <data name="Basic_NetworkRegionAuto" xml:space="preserve">
+      <value>言語に従う</value>
+    </data>
+    <data name="Basic_NetworkRegionChina" xml:space="preserve">
+      <value>中国本土</value>
+    </data>
+    <data name="Basic_NetworkRegionGlobal" xml:space="preserve">
+      <value>グローバル</value>
+    </data>
+    <data name="Basic_NetworkRegionHint" xml:space="preserve">
+      <value>* お知らせ取得と更新確認に使用します。既定では表示言語に従って .cn / .top を選択します。</value>
+    </data>
     <data name="Basic_LeftClick" xml:space="preserve">
       <value>左のみ</value>
     </data>
@@ -131,6 +146,9 @@
     </data>
     <data name="Dialog_ExeFilter" xml:space="preserve">
       <value>実行ファイル (*.exe)|*.exe</value>
+    </data>
+    <data name="Dialog_ImageFilter" xml:space="preserve">
+      <value>画像ファイル (*.png;*.jpg;*.jpeg;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.webp</value>
     </data>
     <data name="Dialog_SelectProcess" xml:space="preserve">
       <value>プロセスを選択</value>
@@ -265,6 +283,21 @@
     <data name="Msg_NetworkError" xml:space="preserve">
       <value>ネットワークエラー</value>
     </data>
+    <data name="Msg_SwitchNetworkSource_Title" xml:space="preserve">
+      <value>ネットワーク接続に失敗しました</value>
+    </data>
+    <data name="Msg_SwitchNetworkSourcePromptAuto" xml:space="preserve">
+      <value>お知らせまたは更新の取得に失敗しました。現在のネットワークソースが利用できない可能性があります。「{0}」に切り替えて再試行しますか？</value>
+    </data>
+    <data name="Msg_SwitchNetworkSourcePromptManual" xml:space="preserve">
+      <value>リクエストに失敗しました：{0}
+
+現在のソース：{1}
+「{2}」に切り替えて再試行しますか？</value>
+    </data>
+    <data name="Msg_InvalidSidebarBackground" xml:space="preserve">
+      <value>無効な背景画像パスです。PNG/JPG/BMP/WebP 形式のファイルを選択してください。</value>
+    </data>
     <data name="Msg_NoUpdateNotes" xml:space="preserve">
       <value>リリースノートなし</value>
     </data>
@@ -322,6 +355,36 @@
     <data name="MultiScreen_Title" xml:space="preserve">
       <value>マルチディスプレイ</value>
     </data>
+    <data name="More_Title" xml:space="preserve">
+      <value>その他の設定</value>
+    </data>
+    <data name="More_SidebarBackground" xml:space="preserve">
+      <value>サイドバー背景画像</value>
+    </data>
+    <data name="More_SidebarBackgroundBrowse" xml:space="preserve">
+      <value>背景画像を選択</value>
+    </data>
+    <data name="More_SidebarBackgroundHint" xml:space="preserve">
+      <value>* PNG/JPG/BMP/WebP に対応</value>
+    </data>
+    <data name="More_Browse" xml:space="preserve">
+      <value>参照...</value>
+    </data>
+    <data name="More_Clear" xml:space="preserve">
+      <value>クリア</value>
+    </data>
+    <data name="Log_Title" xml:space="preserve">
+      <value>実行ログ</value>
+    </data>
+    <data name="Log_Hint" xml:space="preserve">
+      <value>アプリの実行状態とエラーをリアルタイム表示します。</value>
+    </data>
+    <data name="Log_Clear" xml:space="preserve">
+      <value>ログをクリア</value>
+    </data>
+    <data name="Sidebar_Copyright" xml:space="preserve">
+      <value>Copyright © 2026 DoomVoss</value>
+    </data>
     <data name="Nav_About" xml:space="preserve">
       <value>情報</value>
     </data>
@@ -336,6 +399,12 @@
     </data>
     <data name="Nav_MultiScreen" xml:space="preserve">
       <value>マルチディスプレイ</value>
+    </data>
+    <data name="Nav_More" xml:space="preserve">
+      <value>その他</value>
+    </data>
+    <data name="Nav_Log" xml:space="preserve">
+      <value>ログ</value>
     </data>
     <data name="Nav_Settings" xml:space="preserve">
       <value>設定</value>
