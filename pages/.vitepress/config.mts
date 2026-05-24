@@ -4,12 +4,15 @@ export default defineConfig({
   title: "BASpark",
   description: "Official documentation for BASpark - An elegant Blue Archive style mouse effects utility.",
   base: '/',
+  cleanUrls: true,
 
   themeConfig: {
+    logo: '/logo.png',
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide' },
-      { text: 'FAQ', link: '/faq' }
+      { text: 'FAQ', link: '/faq' },
+      { text: 'About', link: '/about' }
     ],
 
     sidebar: [
@@ -17,6 +20,7 @@ export default defineConfig({
         text: 'Getting Started',
         collapsed: false,
         items: [
+          { text: 'About BASpark', link: '/about' },
           { text: 'Software Overview', link: '/guide#software-overview' },
           { text: 'Installation & Uninstallation', link: '/guide#installation--uninstallation' }
         ]
@@ -42,7 +46,8 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/DoomVoss/BASpark' }
+      { icon: 'github', link: 'https://github.com/DoomVoss/BASpark' },
+      { icon: 'discord', link: 'https://discord.gg/sgZMdqhfZu' }
     ],
 
     footer: {

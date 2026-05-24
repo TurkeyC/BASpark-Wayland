@@ -12,9 +12,12 @@ hero:
     - theme: alt
       text: FAQ & Help
       link: /faq
+    - theme: brand
+      text: Download
+      link: https://github.com/DoomVoss/BASpark/releases
     - theme: alt
-      text: View on GitHub
-      link: https://github.com/DoomVoss/BASpark
+      text: 🇨🇳 中国大陆官网
+      link: https://basp.catbotstudio.cn/docs
 
 features:
   - title: 🎮 Blue Archive Style
