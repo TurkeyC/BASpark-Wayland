@@ -1,4 +1,4 @@
-name: Build and Release Installer
+name: Build and Release
 
 on:
   push:
@@ -9,55 +9,69 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    runs-on: windows-latest
+  build-linux:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: baspark-x86_64-unknown-linux-gnu
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: baspark-aarch64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          fetch-depth: 0
+          targets: ${{ matrix.target }}
 
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Build Packaged Files
-        shell: pwsh
+      - name: Install cross-compilation dependencies (aarch64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          $RAW_VER = "${{ github.ref_name }}".TrimStart("v")
-          
-          dotnet publish src/BASpark.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=false `
-            -p:Version=$RAW_VER `
-            -o src/publish_full
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
-      - name: Compile Inno Setup
-        shell: pwsh
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=${{ github.ref_name }} setup.iss
+          if command -v ${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-strip' || 'strip' }} &> /dev/null; then
+            ${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-strip' || 'strip' }} target/${{ matrix.target }}/release/baspark
+          fi
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/BASpark_Installer_*.exe
-          name: "BASpark Release ${{ github.ref_name }}"
+          files: |
+            target/${{ matrix.target }}/release/baspark
+          name: "BASpark-Wayland ${{ github.ref_name }}"
           generate_release_notes: true
           body: |
-            ## BASpark Release ${{ github.ref_name }}
-            
+            ## BASpark-Wayland ${{ github.ref_name }}
+
             ---
-            
-            - **Environment / 运行环境**：Windows 10/11 (x64) | .NET 8.0 Runtime
-            - **License / 开源协议**：MIT License
-            - **Feedback / 问题反馈**：[Issue](https://github.com/DoomVoss/BASpark/issues/new/choose)
-            
-            This release includes the following changes:
-            本次更新包含以下改动：
+
+            - **Environment:** Linux (Wayland)
+            - **License:** MIT License
+            - **Feedback:** [Issues](https://github.com/TurkeyC/BASpark-Wayland/issues)
+
+            ### Installation
+
+            ```bash
+            tar xzf baspark-*.tar.gz
+            sudo mv baspark /usr/local/bin/
+            ```
+
+            ### What's Changed
+
           draft: false
           prerelease: false
         env:
