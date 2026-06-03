@@ -152,6 +152,12 @@ src/
     └── dirty_rect.rs# 脏矩形追踪（局部更新优化）
 ```
 
+## 贡献者
+
+<a href="https://github.com/TurkeyC/BASpark-Wayland/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=TurkeyC/BASpark-Wayland" />
+</a>
+
 ### 参与贡献
 
 欢迎提交 Pull Request！请确保代码风格与现有保持一致，并通过 `cargo build` 编译。

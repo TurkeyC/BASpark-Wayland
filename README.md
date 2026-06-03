@@ -152,6 +152,12 @@ src/
     └── dirty_rect.rs# Dirty rectangle tracking for partial updates
 ```
 
+## Contributors
+
+<a href="https://github.com/TurkeyC/BASpark-Wayland/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=TurkeyC/BASpark-Wayland" />
+</a>
+
 ### Contributing
 
 Pull requests are welcome! Please ensure your code follows the existing style and passes `cargo build`.
