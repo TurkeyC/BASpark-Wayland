@@ -438,8 +438,3 @@ Thumbs.db
 desktop.ini
 
 config.json
-
-
-# Added by cargo
-
-/target

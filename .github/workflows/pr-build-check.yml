@@ -6,36 +6,53 @@ on:
   workflow_dispatch:
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Wayland development libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwayland-dev
-
-      - name: Build
-        run: cargo build --verbose
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
       - name: Run tests
-        run: cargo test --verbose
+        shell: pwsh
+        run: dotnet test BASpark.sln -c Release --verbosity normal
 
-      - name: Check formatting
-        run: cargo fmt --check
+      - name: Build Single EXE
+        shell: pwsh
+        run: |
+          $RAW_VER = "${{ github.ref_name }}".TrimStart("v")
+          
+          if ("${{ github.event_name }}" -eq 'pull_request') { 
+              $PR_NUM = "${{ github.event.pull_request.number }}"
+              $RAW_VER = "0.0.0-pr.$PR_NUM" 
+          }
+          elseif ($RAW_VER -eq "main" -or [string]::IsNullOrWhiteSpace($RAW_VER)) { 
+              $RAW_VER = "0.0.0-preview" 
+          }
+          
+          Write-Host "----------------------------------------------"
+          Write-Host "Targeting Version: $RAW_VER"
+          Write-Host "----------------------------------------------"
 
-      - name: Run clippy
-        run: cargo clippy -- -D warnings
+          dotnet publish src/BASpark.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:Version=$RAW_VER `
+            -o src/publish_single
 
-      - name: Upload build artifact
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: baspark-debug
-          path: target/debug/baspark
+          name: BASpark-Executable-Preview
+          path: src/publish_single/
           retention-days: 7
