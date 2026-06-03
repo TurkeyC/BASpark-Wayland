@@ -128,7 +128,7 @@ fn default_language() -> String {
     String::new()
 }
 fn default_sensitivity() -> f64 {
-    1.0
+    0.5
 }
 fn default_cursor_start() -> f64 {
     960.0

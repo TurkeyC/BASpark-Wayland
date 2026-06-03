@@ -2,7 +2,7 @@ mod app;
 mod autostart;
 mod config;
 mod input;
-mod overlay;
+mod output;
 mod renderer;
 
 use clap::{Parser, Subcommand};
@@ -199,6 +199,8 @@ fn print_config(config: &config::Config) {
     println!("  enable_always_trail = {}", config.enable_always_trail);
     println!("  click_trigger       = {:?}", config.click_trigger);
     println!("  input_sensitivity   = {}", config.input_sensitivity);
+    println!("  cursor_start_x      = {}", config.cursor_start_x);
+    println!("  cursor_start_y      = {}", config.cursor_start_y);
 }
 
 pub(crate) fn pid_file_path() -> Option<std::path::PathBuf> {

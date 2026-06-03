@@ -1,6 +1,6 @@
 use crate::config::Config;
-use crate::input::{InputEvent, MouseButton};
-use crate::overlay::Overlay;
+use crate::input::{EvdevMonitor, InputEvent, MouseButton, CursorTracker};
+use crate::output::WaylandOutput;
 use crate::renderer::ParticleEngine;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -12,15 +12,24 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     write_pid_file()?;
     log::info!("BASpark v{} starting...", env!("CARGO_PKG_VERSION"));
 
-    // 初始化
-    let mut overlay = Overlay::new(&config)?;
-    overlay.init()?;
+    let mut output = WaylandOutput::new()?;
+    output.init()?;
     let mut engine = ParticleEngine::new(&config);
+    let (screen_w, screen_h) = get_screen_size(&mut output);
+    engine.resize(screen_w, screen_h);
 
-    // 调整引擎大小
-    resize_engine(&mut engine, &mut overlay);
+    let cursor = CursorTracker::new(&config, screen_w, screen_h);
+    let mut monitor = EvdevMonitor::new(cursor);
+    monitor.discover();
 
-    // 信号处理
+    if !monitor.has_devices() {
+        log::error!("No pointer input devices found.");
+        log::error!("Make sure your user is in the 'input' group:");
+        log::error!("  sudo usermod -a -G input $USER");
+        return Err("No input devices available".into());
+    }
+    log::info!("Found {} pointer device(s)", monitor.device_count());
+
     let term = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&term))?;
     signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&term))?;
@@ -29,66 +38,72 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("BASpark is running. Press Ctrl+C to stop.");
 
-    let mut frame_timer = Instant::now();
     let target_frame = std::time::Duration::from_secs_f64(1.0 / config.trail_refresh_hz as f64);
+    let target_frame_us = target_frame.as_micros() as i64;
+    let mut frame_timer = Instant::now();
 
-    // 主循环
     loop {
-        // 1. 信号检查
-        if term.load(Ordering::Relaxed) {
-            break;
-        }
+        if term.load(Ordering::Relaxed) { break; }
         if hup.swap(false, Ordering::Relaxed) {
             if let Ok(new_config) = Config::load() {
                 config = new_config;
+                log::info!("Config reloaded via SIGHUP");
             }
         }
 
-        // 2. Dispatch Wayland 事件
-        overlay.poll_events(!engine.has_work())?;
-        // 恢复穿透超时后的 input region
-        overlay.check_passthrough();
+        // 等待 evdev 输入或帧间隔超时
+        let now = Instant::now();
+        let elapsed_us = now.duration_since(frame_timer).as_micros() as i64;
+        let wait_us = if engine.has_work() {
+            (target_frame_us - elapsed_us).max(0).min(target_frame_us)
+        } else {
+            8_000 // 空闲时 8ms 轮询一次
+        };
 
-        // 3. 获取并路由输入事件
-        let input_events = overlay.take_input_events();
-        for ev in &input_events {
+        if wait_us > 500 {
+            monitor.wait_for_events(wait_us as i32);
+        }
+
+        // 处理 Wayland 事件
+        let _ = output.poll_events(false);
+
+        // 处理 evdev 输入
+        let events = monitor.poll();
+        for ev in &events {
             match ev {
                 InputEvent::MouseDown { button, x, y } => {
+                    log::trace!("MouseDown btn={:?} x={:.0} y={:.0}", button, x, y);
+                    if *button == MouseButton::Middle {
+                        monitor.cursor.recenter();
+                        continue;
+                    }
                     if should_trigger(&config, *button) {
                         engine.on_mouse_down(*x, *y, &config);
                     }
                 }
                 InputEvent::MouseMove { x, y } => {
-                    if overlay.is_button_down(MouseButton::Left)
-                        || overlay.is_button_down(MouseButton::Right)
-                        || config.enable_always_trail
-                    {
+                    if monitor.cursor.is_down || config.enable_always_trail {
                         engine.on_mouse_move(*x, *y, &config);
                     }
                 }
-                InputEvent::MouseUp { .. } => {
+                InputEvent::MouseUp { button } => {
+                    if *button == MouseButton::Middle {
+                        continue;
+                    }
                     engine.on_mouse_up();
                 }
             }
         }
 
-        // 4. 渲染
+        // 渲染
         let now = Instant::now();
         if engine.has_work() && now.duration_since(frame_timer) >= target_frame {
             frame_timer = now;
-            let t0 = Instant::now();
             if let Some(pixels) = engine.render_frame(&config) {
-                let t1 = Instant::now();
-                render_to_overlay(pixels, &mut overlay);
-                let t2 = Instant::now();
-                let render_ms = (t1 - t0).as_secs_f64() * 1000.0;
-                let overlay_ms = (t2 - t1).as_secs_f64() * 1000.0;
-                eprintln!("[FPS] render={:.1}ms overlay={:.1}ms total={:.1}ms",
-                    render_ms, overlay_ms, render_ms + overlay_ms);
+                render_to_overlay(pixels, &mut output);
             }
         }
 
-        // 5. 空闲重置
         if !engine.has_work() {
             frame_timer = Instant::now();
         }
@@ -99,10 +114,16 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn should_trigger(config: &Config, button: MouseButton) -> bool {
-    if !config.is_effect_enabled {
-        return false;
+fn get_screen_size(output: &mut WaylandOutput) -> (f64, f64) {
+    if let Some(s) = output.surfaces_mut().first() {
+        (s.width as f64, s.height as f64)
+    } else {
+        (1920.0, 1080.0)
     }
+}
+
+fn should_trigger(config: &Config, button: MouseButton) -> bool {
+    if !config.is_effect_enabled { return false; }
     match config.click_trigger {
         crate::config::ClickTrigger::Left => button == MouseButton::Left,
         crate::config::ClickTrigger::Right => button == MouseButton::Right,
@@ -112,47 +133,41 @@ fn should_trigger(config: &Config, button: MouseButton) -> bool {
     }
 }
 
-fn resize_engine(engine: &mut ParticleEngine, overlay: &mut Overlay) {
-    let surfaces = overlay.surfaces_mut();
-    if let Some(surface) = surfaces.first() {
-        engine.resize(surface.width as f64, surface.height as f64);
-    }
-}
-
-fn render_to_overlay(pixels: &[u8], overlay: &mut Overlay) {
-    for surface in overlay.surfaces_mut() {
+fn render_to_overlay(pixels: &[u8], output: &mut WaylandOutput) {
+    for surface in output.surfaces_mut() {
         let buf = surface.pixels_mut();
-        let pixel_count = buf.len().min(pixels.len()) / 4;
+        let n = buf.len().min(pixels.len()) / 4;
 
-        for i in 0..pixel_count {
+        // tiny_skia Pixmap 是 RGBA premultiplied, Wayland ARGB8888 (LE) 是 BGRA non-premultiplied
+        for i in 0..n {
             let j = i * 4;
-            let premul_b = pixels[j] as u32;
-            let premul_g = pixels[j + 1] as u32;
-            let premul_r = pixels[j + 2] as u32;
+            let pr = pixels[j] as u32;
+            let pg = pixels[j + 1] as u32;
+            let pb = pixels[j + 2] as u32;
             let a = pixels[j + 3] as u32;
-
-            let (r, g, b) = if a == 0 {
-                (0u32, 0u32, 0u32)
+            // 快速通道: 全透明或完全不透明时避免除法
+            if a == 0 || a == 255 {
+                buf[j]     = pb as u8;
+                buf[j + 1] = pg as u8;
+                buf[j + 2] = pr as u8;
+                buf[j + 3] = a as u8;
             } else {
-                (premul_r * 255 / a, premul_g * 255 / a, premul_b * 255 / a)
-            };
-
-            buf[j] = b as u8;
-            buf[j + 1] = g as u8;
-            buf[j + 2] = r as u8;
-            buf[j + 3] = a as u8;
+                buf[j]     = pb as u8;
+                buf[j + 1] = (pg * 255 / a) as u8;
+                buf[j + 2] = (pr * 255 / a) as u8;
+                buf[j + 3] = a as u8;
+            }
         }
-    }
 
-    overlay.commit_and_swap();
+
+    }
+    output.commit_and_swap();
 }
 
 fn write_pid_file() -> Result<(), Box<dyn std::error::Error>> {
     let path = crate::pid_file_path()
         .unwrap_or_else(|| std::path::PathBuf::from("/tmp/baspark.pid"));
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
+    if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
     std::fs::write(&path, std::process::id().to_string())?;
     Ok(())
 }

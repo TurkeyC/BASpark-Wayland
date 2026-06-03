@@ -26,3 +26,5 @@ nix = { version = "0.31", features = ["signal"] }
 memmap2 = "0.9"
 tempfile = "3"
 rand = "0.9"
+evdev = "0.13"
+libc = "0.2"

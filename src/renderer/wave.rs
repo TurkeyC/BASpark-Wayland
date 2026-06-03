@@ -30,7 +30,7 @@ pub struct Wave {
 const FILLED_R_ADD_RATE: f64 = 26.0;
 const FILLED_MAX_LIFE: f64 = 16.0;
 const RINGS_MAX_LIFE: f64 = 23.0;
-const RINGS_SEG_NUM: usize = 10;
+const RINGS_SEG_NUM: usize = 5;
 const RINGS_MIN_W: f64 = 0.4;
 const RINGS_MAX_W: f64 = 3.3;
 const RINGS_LEN_STOP_ADD: f64 = 0.1;
@@ -225,7 +225,7 @@ fn render_rings(
 
             // 用线段近似圆弧
             let mut pb = PathBuilder::new();
-            let points_on_arc = 4u32;
+            let points_on_arc = 2u32;
             let (first_x, first_y) = arc_point(w.x, w.y, radius, a0);
             pb.move_to(first_x as f32, first_y as f32);
             for p in 1..=points_on_arc {
