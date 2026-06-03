@@ -1,113 +1,177 @@
 <div align="center">
 
-![BASpark](https://socialify.git.ci/DoomVoss/BASpark/image?description=1&descriptionEditable=Blue%20Archive%20Style%20Particle%20Effect&forks=1&issues=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2FDoomVoss%2FBASpark%2Fmain%2Fassets%2Flogo.png&name=1&pattern=Diagonal%20Stripes&pulls=1&stargazers=1&theme=Auto)
+![BASpark](https://socialify.git.ci/TurkeyC/BASpark-Wayland/image?description=1&descriptionEditable=Blue%20Archive%20Style%20Particle%20Effect%20for%20Linux/Wayland&font=Inter&forks=1&issues=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2FDoomVoss%2FBASpark%2Fmain%2Fassets%2Flogo.png&name=1&pattern=Diagonal%20Stripes&pulls=1&stargazers=1&theme=Auto)
 
-[![GitHub stars](https://img.shields.io/github/stars/DoomVoss/BASpark?style=social)](https://github.com/DoomVoss/BASpark/stargazers)
-[![GitHub license](https://img.shields.io/github/license/DoomVoss/BASpark)](https://github.com/DoomVoss/BASpark/blob/main/LICENSE)
-[![GitHub issues](https://img.shields.io/github/issues/DoomVoss/BASpark)](https://github.com/DoomVoss/BASpark/issues)
-[![Discord](https://img.shields.io/badge/Discord-Join-7289DA)](https://discord.gg/sgZMdqhfZu)
-[![QQ](https://img.shields.io/badge/QQ-Doom-blue)](https://qm.qq.com/q/oGwB5mKQtq)
+[![GitHub stars](https://img.shields.io/github/stars/TurkeyC/BASpark-Wayland?style=social)](https://github.com/TurkeyC/BASpark-Wayland/stargazers)
+[![GitHub license](https://img.shields.io/github/license/TurkeyC/BASpark-Wayland)](https://github.com/TurkeyC/BASpark-Wayland/blob/main/LICENSE)
+[![GitHub issues](https://img.shields.io/github/issues/TurkeyC/BASpark-Wayland)](https://github.com/TurkeyC/BASpark-Wayland/issues)
 
-🌐 **Languages:** English | [简体中文](./docs/README_zh.md)
-
-[Download](https://github.com/DoomVoss/BASpark/releases/latest) | [Bug Report](https://github.com/DoomVoss/BASpark/issues/new?template=en_bug_report.yml) | [Feature Request](https://github.com/DoomVoss/BASpark/issues/new?template=en_feature_request.yml)
+[Download](https://github.com/TurkeyC/BASpark-Wayland/releases/latest) | [Bug Report](https://github.com/TurkeyC/BASpark-Wayland/issues/new) | [Feature Request](https://github.com/TurkeyC/BASpark-Wayland/issues/new)
 
 </div>
 
 ---
 
-# BASpark
+# BASpark-Wayland
 
-> **A Windows Desktop Particle Effect Tool:** Reconstructing the iconic Blue Archive UI interactive visual dynamics using HTML5/Canvas.
+> **A Linux/Wayland Native Desktop Particle Effect Tool:** Reconstructing the iconic Blue Archive UI interactive visual dynamics using Rust + tiny-skia.
 
-**BASpark** is a lightweight, versatile Windows desktop interactive visual effect utility dedicated to precisely reproducing the clicking and particle fluid dynamics seen in the game *Blue Archive*.
+**BASpark-Wayland** is a lightweight, native Linux desktop particle effect tool that precisely reproduces the clicking and trail animations from the game *Blue Archive*. It runs as a transparent Wayland overlay using `wlr-layer-shell` and renders particles with a pure-CPU 2D vector engine.
+
+This is a **Linux/Wayland native port** of the original [BASpark](https://github.com/DoomVoss/BASpark) by DoomVoss (Windows WPF + WebView2 version).
 
 ---
 
 ## Features
 
-BASpark operates on a hybrid rendering architecture utilizing a **WPF host infrastructure powered by localized WebView2 rendering runtimes**.
-
-* **Authentic Visual Fidelity:** Flawlessly replicates the particle responses, easing animations, and interactive textures of the classic Blue Archive visual framework.
-* **Aggressive Resource Optimization:** Leveraging WebView2 lifecycle management, rendering procedures are invoked strictly upon input triggers. The graphics context completely hibernates when idle, causing zero overhead to active background processes or system resources.
-* **System-Wide Environment Perception:** Full compatibility with full-screen entertainment and production environments. Real-time hook intercepting accurately routes input feedback without interrupting target processes.
+* **Authentic Visual Fidelity** — Three particle subsystems (click waves, spinning sparks, mouse trails) faithfully recreate the Blue Archive look and feel.
+* **Wayland Native** — Uses `zwlr-layer-shell-v1` for a transparent overlay, `wl_pointer` for input capture, and `zwlr_virtual_pointer_v1` for click-through forwarding.
+* **CPU-Only Rendering** — Built on `tiny-skia`, a pure Rust 2D vector graphics library. No GPU or WebView required.
+* **Zero Overhead When Idle** — The renderer hibernates completely when there are no active particles.
+* **Fully Configurable** — Particle color, scale, opacity, speed, trail behavior, refresh rate, and more via TOML config files.
+* **CLI-Driven** — Daemon-style lifecycle with `start`, `stop`, `status`, `config`, and `reload` commands.
 
 ---
 
 ## Getting Started
 
-### System Specifications
-* **Architecture:** Requires a 64-bit processor and native OS environment.
-* **Operating System:** Windows 10 / Windows 11 (X64 architectures).
-* **Memory:** Minimum 200 MB RAM allocation.
-* **Graphics Unit:** Discrete or integrated graphics processing units natively supporting DirectX 11 or OpenGL runtimes.
-* **Storage Matrix:** Minimum 200 MB available physical storage workspace.
+### System Requirements
+
+* **Operating System:** Linux with a Wayland compositor supporting `wlr-layer-shell` (e.g., Sway, Hyprland, River, Wayfire)
+* **Compositor Features:** `wlr-layer-shell-unstable-v1`, `zwlr-virtual-pointer-v1`
 
 ### Installation
-1. Navigate to the official [Releases Hub](https://github.com/DoomVoss/BASpark/releases). Download the latest setup binary: `BASpark_Installer_vX.X.X_x64.exe`.
-2. Execute the installer application and follow the deployment wizard instructions to initialize the localized directory.
-3. Launch the primary execution routine and enjoy the interactive effects.
 
----
-
-## Contribution Guide
-
-We encourage open-source community contributions. To set up your local workspace for BASpark engineering:
-
-### Environment Setup
-Clone the remote repository locally:
+#### From Source
 
 ```bash
-git clone https://github.com/DoomVoss/BASpark.git
-cd BASpark
+git clone https://github.com/TurkeyC/BASpark-Wayland.git
+cd BASpark-Wayland
+cargo build --release
+sudo cp target/release/baspark /usr/local/bin/
 ```
 
-Open the project folder using Visual Studio Code (Ensure the C# Dev Kit extension suite is installed):
+#### From Releases
+
+Download the latest binary from the [Releases page](https://github.com/TurkeyC/BASpark-Wayland/releases/latest), then:
 
 ```bash
-code .
+chmod +x baspark
+sudo mv baspark /usr/local/bin/
 ```
 
-* **Live Frontend Engineering:** Because the central animation loops and visual textures are structurally compiled inside HTML5/Canvas components, you can dynamically view and troubleshoot elements in src/web/ in real time via VS Code without rebuilding the whole C# runtime wrapper structure.
-* When submitting an issue solution or optimization, open a formal Pull Request (https://github.com/DoomVoss/BASpark/pulls). Ensure your implementation aligns with the project’s established formatting styles and code quality rules.
+### Usage
+
+```bash
+# Start the overlay daemon
+baspark start
+
+# Stop it
+baspark stop
+
+# Check if running
+baspark status
+
+# View current configuration
+baspark config --show
+
+# Customize particle color
+baspark config --color "255,100,100"
+
+# Change effect scale
+baspark config --scale 2.0
+
+# Reload config without restarting
+baspark reload
+```
+
+Configuration is stored at `~/.config/BASpark/config.toml`.
 
 ---
 
-## Disclaimers Clarifications
+## Building from Source
 
-* This utility is published strictly as a non-commercial, fan-made interactive tribute project. Commercial distribution or unauthorized reselling of this code or asset package is strictly prohibited.
-* The source codebase is audited and contains no malicious modules, spyware, telemetry packages, or destructive code. Its functional scope is limited entirely to desktop aesthetic rendering.
-* This software distribution is delivered strictly on an "as-is" basis. The maintenance team disclaims any liability for directly or indirectly declared system anomalies or operational losses stemming from execution.
-* The fundamental design languages, trademark graphics, and overall creative aesthetics draw artistic inspiration from the intellectual property of Nexon / Yostar (Blue Archive). All related copyrights belong unconditionally to their respective commercial legal owners.
+```bash
+# Debug build
+cargo build
+
+# Release build
+cargo build --release
+
+# Run directly
+cargo run -- start
+```
+
+### Dependencies
+
+* Rust 2021 edition (1.70+)
+* Wayland development libraries (`libwayland-dev` or equivalent)
+* No other runtime dependencies — the binary is fully self-contained.
 
 ---
 
-## Star History
+## Configuration Reference
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=DoomVoss/BASpark&type=Date&theme=dark" />
-  <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=DoomVoss/BASpark&type=Date" />
-  <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=DoomVoss/BASpark&type=Date" />
-</picture>
+| Option | Default | Description |
+|--------|---------|-------------|
+| `particle_color` | `"45,175,255"` | RGB color string `"R,G,B"` |
+| `is_effect_enabled` | `true` | Master toggle |
+| `effect_scale` | `1.5` | Particle size multiplier (0.5–3.0) |
+| `effect_opacity` | `1.0` | Global opacity (0.1–1.0) |
+| `use_linked_speed` | `true` | Link trail & click speed to single value |
+| `effect_speed` | `1.0` | Speed when linked (0.2–3.0) |
+| `trail_speed` | `1.0` | Trail animation speed (0.2–3.0) |
+| `click_speed` | `1.0` | Click animation speed (0.2–3.0) |
+| `trail_refresh_hz` | `40` | Render frame rate (10–240 Hz) |
+| `enable_always_trail` | `false` | Show trail without holding mouse button |
+| `click_trigger` | `"left"` | Mouse button to trigger effects (`left`/`right`/`both`) |
+| `filter_mode` | `"disabled"` | Process filter (`disabled`/`blacklist`/`whitelist`) |
+| `filter_processes` | `[]` | Process names for filter |
+| `hide_in_fullscreen` | `true` | Auto-disable on fullscreen apps |
+| `show_on_desktop` | `true` | Enable on desktop |
+| `autostart` | `false` | Start with session |
 
 ---
 
-## Contributors
+## Project Architecture
 
-<a href="https://github.com/DoomVoss/BASpark/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=DoomVoss/BASpark&v=0410" />
-</a>
+```
+src/
+├── main.rs          # CLI entry point (clap)
+├── app.rs           # Main loop, signal handling, frame timing
+├── config.rs        # TOML config load/save
+├── input.rs         # Input event types
+├── overlay.rs       # Wayland wlr-layer-shell overlay + input capture
+├── autostart.rs     # XDG autostart management
+└── renderer/
+    ├── mod.rs       # ParticleEngine — orchestrates all subsystems
+    ├── trail.rs     # Mouse trail rendering (gradient segments)
+    ├── wave.rs      # Click wave/ring rendering
+    ├── spark.rs     # Spark particle rendering (rotating triangles)
+    ├── pool.rs      # Generic object pool
+    └── dirty_rect.rs# Dirty rectangle tracking for partial updates
+```
+
+### Contributing
+
+Pull requests are welcome! Please ensure your code follows the existing style and passes `cargo build`.
+
+---
+
+## Disclaimers
+
+* This is a non-commercial, fan-made tribute project. Commercial redistribution is prohibited.
+* Visual style is inspired by Nexon / Yostar's *Blue Archive*. All copyrights belong to their respective owners.
+* This software is provided "as-is" without warranty.
 
 ---
 
 ## License
 
-This software utility is distributed globally under the terms of the MIT License. For deep structural parameters and legal terminology, refer explicitly to the [LICENSE](./LICENSE) document.
+MIT License — see the [LICENSE](./LICENSE) file for details.
 
-> **MIT License**
->
-> Copyright (c) 2026 Doom
+Original BASpark (Windows version) by [DoomVoss](https://github.com/DoomVoss/BASpark).
 
 <div align="center">
-  Made with ❤️ by Doom
+  Made with ❤️
 </div>
